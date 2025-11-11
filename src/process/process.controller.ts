@@ -115,4 +115,65 @@ export class ProcessController {
   findOneVersion(@Param('id') processId: string, @Param('version') version: string) {
     return this.processVersionService.findOne(processId, parseInt(version));
   }
+
+  // Process Steps endpoints
+  @Get(':id/steps')
+  @ApiOperation({ summary: 'Get all steps of a process' })
+  @ApiResponse({ status: 200, description: 'List of steps returned' })
+  getProcessSteps(
+    @Param('id') processId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.getProcessSteps(processId, userId, role);
+  }
+
+  @Post(':id/steps')
+  @ApiOperation({ summary: 'Add a new step to process' })
+  @ApiResponse({ status: 201, description: 'Step added successfully' })
+  addProcessStep(
+    @Param('id') processId: string,
+    @Body() stepData: { title: string; description: string; estimatedMinutes?: number },
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.addProcessStep(processId, stepData, userId, role);
+  }
+
+  @Patch(':id/steps/:stepId')
+  @ApiOperation({ summary: 'Update a process step' })
+  @ApiResponse({ status: 200, description: 'Step updated successfully' })
+  updateProcessStep(
+    @Param('id') processId: string,
+    @Param('stepId') stepId: string,
+    @Body() stepData: { title?: string; description?: string; estimatedMinutes?: number },
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.updateProcessStep(processId, stepId, stepData, userId, role);
+  }
+
+  @Delete(':id/steps/:stepId')
+  @ApiOperation({ summary: 'Delete a process step' })
+  @ApiResponse({ status: 200, description: 'Step deleted successfully' })
+  deleteProcessStep(
+    @Param('id') processId: string,
+    @Param('stepId') stepId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.deleteProcessStep(processId, stepId, userId, role);
+  }
+
+  @Post(':id/steps/reorder')
+  @ApiOperation({ summary: 'Reorder process steps' })
+  @ApiResponse({ status: 200, description: 'Steps reordered successfully' })
+  reorderProcessSteps(
+    @Param('id') processId: string,
+    @Body() body: { stepIds: string[] },
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.reorderProcessSteps(processId, body.stepIds, userId, role);
+  }
 }

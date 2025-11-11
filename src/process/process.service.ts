@@ -33,6 +33,22 @@ export class ProcessService {
       },
     });
 
+    // Create initial ProcessVersion with empty SOP
+    await this.prisma.processVersion.create({
+      data: {
+        processId: process.id,
+        version: 1,
+        sopJson: {
+          steps: [],
+          metadata: {
+            createdAt: new Date().toISOString(),
+          },
+        },
+        formData: createProcessDto,
+        createdById: userId,
+      },
+    });
+
     // Create audit log
     await this.prisma.auditLog.create({
       data: {
@@ -314,5 +330,301 @@ export class ProcessService {
     });
 
     return updated;
+  }
+
+  // ==================== PROCESS STEPS MANAGEMENT ====================
+
+  async getProcessSteps(processId: string, userId: string, userRole: string) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 }, // Get current version
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    // Check permissions
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.MANAGER &&
+      process.createdById !== userId &&
+      process.status !== ProcessStatus.APPROVED
+    ) {
+      throw new ForbiddenException('You do not have permission to view this process');
+    }
+
+    const version = process.versions[0];
+    if (!version || !version.sopJson) {
+      return { steps: [] };
+    }
+
+    const sopData: any = version.sopJson;
+    return { steps: sopData.steps || [] };
+  }
+
+  async addProcessStep(
+    processId: string,
+    stepData: { title: string; description: string; estimatedMinutes?: number },
+    userId: string,
+    userRole: string,
+  ) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    // Only creator or admin can add steps
+    if (process.createdById !== userId && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to modify this process');
+    }
+
+    const version = process.versions[0];
+    if (!version) {
+      throw new NotFoundException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    const steps = sopData.steps || [];
+
+    // Create new step
+    const newStep = {
+      id: `step-${Date.now()}`,
+      order: steps.length + 1,
+      title: stepData.title,
+      description: stepData.description,
+      estimatedMinutes: stepData.estimatedMinutes || null,
+    };
+
+    steps.push(newStep);
+
+    // Update version
+    await this.prisma.processVersion.update({
+      where: { id: version.id },
+      data: {
+        sopJson: {
+          ...sopData,
+          steps,
+        },
+      },
+    });
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'CREATE',
+        entity: 'ProcessStep',
+        entityId: newStep.id,
+      },
+    });
+
+    return newStep;
+  }
+
+  async updateProcessStep(
+    processId: string,
+    stepId: string,
+    stepData: { title?: string; description?: string; estimatedMinutes?: number },
+    userId: string,
+    userRole: string,
+  ) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    if (process.createdById !== userId && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to modify this process');
+    }
+
+    const version = process.versions[0];
+    if (!version) {
+      throw new NotFoundException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    const steps = sopData.steps || [];
+
+    const stepIndex = steps.findIndex((s: any) => s.id === stepId);
+    if (stepIndex === -1) {
+      throw new NotFoundException('Step not found');
+    }
+
+    // Update step
+    steps[stepIndex] = {
+      ...steps[stepIndex],
+      ...stepData,
+    };
+
+    // Update version
+    await this.prisma.processVersion.update({
+      where: { id: version.id },
+      data: {
+        sopJson: {
+          ...sopData,
+          steps,
+        },
+      },
+    });
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'UPDATE',
+        entity: 'ProcessStep',
+        entityId: stepId,
+        changes: stepData,
+      },
+    });
+
+    return steps[stepIndex];
+  }
+
+  async deleteProcessStep(processId: string, stepId: string, userId: string, userRole: string) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    if (process.createdById !== userId && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to modify this process');
+    }
+
+    const version = process.versions[0];
+    if (!version) {
+      throw new NotFoundException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    let steps = sopData.steps || [];
+
+    const stepIndex = steps.findIndex((s: any) => s.id === stepId);
+    if (stepIndex === -1) {
+      throw new NotFoundException('Step not found');
+    }
+
+    // Remove step
+    steps = steps.filter((s: any) => s.id !== stepId);
+
+    // Reorder remaining steps
+    steps = steps.map((s: any, index: number) => ({
+      ...s,
+      order: index + 1,
+    }));
+
+    // Update version
+    await this.prisma.processVersion.update({
+      where: { id: version.id },
+      data: {
+        sopJson: {
+          ...sopData,
+          steps,
+        },
+      },
+    });
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'DELETE',
+        entity: 'ProcessStep',
+        entityId: stepId,
+      },
+    });
+
+    return { message: 'Step deleted successfully' };
+  }
+
+  async reorderProcessSteps(
+    processId: string,
+    newOrder: string[],
+    userId: string,
+    userRole: string,
+  ) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    if (process.createdById !== userId && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to modify this process');
+    }
+
+    const version = process.versions[0];
+    if (!version) {
+      throw new NotFoundException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    const steps = sopData.steps || [];
+
+    // Reorder steps based on newOrder array
+    const reorderedSteps = newOrder.map((stepId, index) => {
+      const step = steps.find((s: any) => s.id === stepId);
+      if (!step) {
+        throw new NotFoundException(`Step ${stepId} not found`);
+      }
+      return {
+        ...step,
+        order: index + 1,
+      };
+    });
+
+    // Update version
+    await this.prisma.processVersion.update({
+      where: { id: version.id },
+      data: {
+        sopJson: {
+          ...sopData,
+          steps: reorderedSteps,
+        },
+      },
+    });
+
+    return { steps: reorderedSteps };
   }
 }
