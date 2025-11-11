@@ -64,7 +64,7 @@ export default function NewProcessPage() {
 
   // Sub-step form
   const [showSubStepForm, setShowSubStepForm] = useState(false);
-  const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null);
+  const [parentStepIndex, setParentStepIndex] = useState<number | null>(null);
   const [editingSubStepIndex, setEditingSubStepIndex] = useState<number | null>(null);
   const [subStepFormData, setSubStepFormData] = useState({ title: '', description: '', estimatedMinutes: '' });
 
@@ -175,7 +175,7 @@ export default function NewProcessPage() {
   };
 
   const handleAddSubStep = () => {
-    if (!subStepFormData.title || !subStepFormData.description || currentStepIndex === null) {
+    if (!subStepFormData.title || !subStepFormData.description || parentStepIndex === null) {
       alert('Başlık ve açıklama zorunludur');
       return;
     }
@@ -184,8 +184,8 @@ export default function NewProcessPage() {
 
     if (editingSubStepIndex !== null) {
       // Update existing sub-step
-      updated[currentStepIndex].subSteps[editingSubStepIndex] = {
-        id: updated[currentStepIndex].subSteps[editingSubStepIndex].id,
+      updated[parentStepIndex].subSteps[editingSubStepIndex] = {
+        id: updated[parentStepIndex].subSteps[editingSubStepIndex].id,
         title: subStepFormData.title,
         description: subStepFormData.description,
         estimatedMinutes: subStepFormData.estimatedMinutes,
@@ -198,7 +198,7 @@ export default function NewProcessPage() {
         description: subStepFormData.description,
         estimatedMinutes: subStepFormData.estimatedMinutes,
       };
-      updated[currentStepIndex].subSteps.push(newSubStep);
+      updated[parentStepIndex].subSteps.push(newSubStep);
     }
 
     setProcessSteps(updated);
@@ -220,7 +220,7 @@ export default function NewProcessPage() {
       description: subStep.description,
       estimatedMinutes: subStep.estimatedMinutes,
     });
-    setCurrentStepIndex(stepIndex);
+    setParentStepIndex(stepIndex);
     setEditingSubStepIndex(subStepIndex);
     setShowSubStepForm(true);
   };
@@ -265,7 +265,7 @@ export default function NewProcessPage() {
           description: step.description,
           estimatedMinutes: step.estimatedMinutes ? parseInt(step.estimatedMinutes) : undefined,
         };
-        const createdStep = await api.addStep(newProcess.id, stepData);
+        const createdStep = await api.addProcessStep(newProcess.id, stepData);
 
         // Add sub-steps if any
         for (const subStep of step.subSteps) {
@@ -733,7 +733,7 @@ export default function NewProcessPage() {
                         {/* Add sub-step button */}
                         <button
                           onClick={() => {
-                            setCurrentStepIndex(stepIndex);
+                            setParentStepIndex(stepIndex);
                             setEditingSubStepIndex(null);
                             setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
                             setShowSubStepForm(true);

@@ -113,11 +113,6 @@ class ApiClient {
     return response.data;
   }
 
-  async analyzeProcess(id: string) {
-    const response = await this.client.post(`/process/${id}/analyze`);
-    return response.data;
-  }
-
   // Approval endpoints
   async getPendingApprovals() {
     const response = await this.client.get('/approval/pending');
