@@ -4,6 +4,23 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowLeft,
   ArrowRight,
   Save,
@@ -13,6 +30,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  GripVertical,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ProcessStatus } from '@/lib/store';
@@ -33,6 +51,159 @@ interface SubStep {
 }
 
 type WizardStep = 'basic' | 'metrics' | 'steps' | 'review';
+
+interface SortableStepItemProps {
+  step: Step;
+  stepIndex: number;
+  expandedSteps: Set<string>;
+  onToggleExpand: (stepId: string) => void;
+  onEdit: (index: number) => void;
+  onDelete: (index: number) => void;
+  onAddSubStep: (stepIndex: number) => void;
+  onEditSubStep: (stepIndex: number, subStepIndex: number) => void;
+  onDeleteSubStep: (stepIndex: number, subStepIndex: number) => void;
+}
+
+function SortableStepItem({
+  step,
+  stepIndex,
+  expandedSteps,
+  onToggleExpand,
+  onEdit,
+  onDelete,
+  onAddSubStep,
+  onEditSubStep,
+  onDeleteSubStep,
+}: SortableStepItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: step.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="card bg-white border-2 border-blue-200">
+      <div className="flex items-start gap-3">
+        <button
+          {...attributes}
+          {...listeners}
+          className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 mt-1"
+        >
+          <GripVertical className="h-5 w-5" />
+        </button>
+        <div className="bg-blue-100 text-blue-800 font-semibold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
+          {stepIndex + 1}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-gray-900">{step.title}</h4>
+          <p className="text-sm text-gray-600 mt-1">{step.description}</p>
+          {step.estimatedMinutes && (
+            <p className="text-xs text-gray-500 mt-1">
+              Tahmini süre: {step.estimatedMinutes} dakika
+            </p>
+          )}
+
+          {/* Sub-steps section */}
+          {step.subSteps.length > 0 && (
+            <div className="mt-3 ml-0">
+              <button
+                onClick={() => onToggleExpand(step.id)}
+                className="flex items-center gap-2 text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
+              >
+                {expandedSteps.has(step.id) ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+                Alt Adımlar ({step.subSteps.length})
+              </button>
+
+              {expandedSteps.has(step.id) && (
+                <div className="mt-2 space-y-2 ml-6">
+                  {step.subSteps.map((subStep, subStepIndex) => (
+                    <div
+                      key={subStep.id}
+                      className="bg-gray-50 rounded-lg p-3 border border-green-200"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="bg-green-100 text-green-800 text-xs font-semibold rounded px-2 py-1 flex-shrink-0">
+                          {stepIndex + 1}.{subStepIndex + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h5 className="text-sm font-medium text-gray-900">{subStep.title}</h5>
+                          <p className="text-xs text-gray-600 mt-0.5">{subStep.description}</p>
+                          {subStep.estimatedMinutes && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {subStep.estimatedMinutes} dakika
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => onEditSubStep(stepIndex, subStepIndex)}
+                            className="text-blue-600 hover:text-blue-800 p-1"
+                            title="Düzenle"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => onDeleteSubStep(stepIndex, subStepIndex)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                            title="Sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Add sub-step button */}
+          <button
+            onClick={() => onAddSubStep(stepIndex)}
+            className="mt-2 text-sm text-green-600 hover:text-green-800 font-medium flex items-center gap-1"
+          >
+            <Plus className="h-3 w-3" />
+            Alt Adım Ekle
+          </button>
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => onEdit(stepIndex)}
+            className="text-blue-600 hover:text-blue-800 p-1"
+            title="Düzenle"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => onDelete(stepIndex)}
+            className="text-red-600 hover:text-red-800 p-1"
+            title="Sil"
+          >
+            <Trash2 className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function NewProcessPage() {
   const router = useRouter();
@@ -76,6 +247,27 @@ export default function NewProcessPage() {
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
+
+  // Drag & Drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = processSteps.findIndex((step) => step.id === active.id);
+    const newIndex = processSteps.findIndex((step) => step.id === over.id);
+
+    setProcessSteps(arrayMove(processSteps, oldIndex, newIndex));
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
@@ -653,119 +845,38 @@ export default function NewProcessPage() {
                 <p className="text-sm text-gray-500 mt-1">Yukarıdaki butonu kullanarak yeni adım ekleyin</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {processSteps.map((step, stepIndex) => (
-                  <div key={step.id} className="card bg-white border-2 border-blue-200">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-blue-100 text-blue-800 font-semibold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
-                        {stepIndex + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900">{step.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1">{step.description}</p>
-                        {step.estimatedMinutes && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Tahmini süre: {step.estimatedMinutes} dakika
-                          </p>
-                        )}
-
-                        {/* Sub-steps section */}
-                        {step.subSteps.length > 0 && (
-                          <div className="mt-3 ml-0">
-                            <button
-                              onClick={() => toggleStepExpansion(step.id)}
-                              className="flex items-center gap-2 text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
-                            >
-                              {expandedSteps.has(step.id) ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                              Alt Adımlar ({step.subSteps.length})
-                            </button>
-
-                            {expandedSteps.has(step.id) && (
-                              <div className="mt-2 space-y-2 ml-6">
-                                {step.subSteps.map((subStep, subStepIndex) => (
-                                  <div
-                                    key={subStep.id}
-                                    className="bg-gray-50 rounded-lg p-3 border border-green-200"
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <div className="bg-green-100 text-green-800 text-xs font-semibold rounded px-2 py-1 flex-shrink-0">
-                                        {stepIndex + 1}.{subStepIndex + 1}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <h5 className="text-sm font-medium text-gray-900">{subStep.title}</h5>
-                                        <p className="text-xs text-gray-600 mt-0.5">{subStep.description}</p>
-                                        {subStep.estimatedMinutes && (
-                                          <p className="text-xs text-gray-500 mt-1">
-                                            {subStep.estimatedMinutes} dakika
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={() => handleEditSubStep(stepIndex, subStepIndex)}
-                                          className="text-blue-600 hover:text-blue-800 p-1"
-                                          title="Düzenle"
-                                        >
-                                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                          </svg>
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteSubStep(stepIndex, subStepIndex)}
-                                          className="text-red-600 hover:text-red-800 p-1"
-                                          title="Sil"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Add sub-step button */}
-                        <button
-                          onClick={() => {
-                            setParentStepIndex(stepIndex);
-                            setEditingSubStepIndex(null);
-                            setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
-                            setShowSubStepForm(true);
-                          }}
-                          className="mt-2 text-sm text-green-600 hover:text-green-800 font-medium flex items-center gap-1"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Alt Adım Ekle
-                        </button>
-                      </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleEditStep(stepIndex)}
-                          className="text-blue-600 hover:text-blue-800 p-1"
-                          title="Düzenle"
-                        >
-                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStep(stepIndex)}
-                          className="text-red-600 hover:text-red-800 p-1"
-                          title="Sil"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={processSteps.map(s => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {processSteps.map((step, stepIndex) => (
+                      <SortableStepItem
+                        key={step.id}
+                        step={step}
+                        stepIndex={stepIndex}
+                        expandedSteps={expandedSteps}
+                        onToggleExpand={toggleStepExpansion}
+                        onEdit={handleEditStep}
+                        onDelete={handleDeleteStep}
+                        onAddSubStep={(index) => {
+                          setParentStepIndex(index);
+                          setEditingSubStepIndex(null);
+                          setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                          setShowSubStepForm(true);
+                        }}
+                        onEditSubStep={handleEditSubStep}
+                        onDeleteSubStep={handleDeleteSubStep}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
         )}
