@@ -114,6 +114,11 @@ export default function ProcessDetailPage() {
   const [editingSubStep, setEditingSubStep] = useState<{ stepId: string; subStep: SubStep } | null>(null);
   const [subStepFormData, setSubStepFormData] = useState({ title: '', description: '', estimatedMinutes: '' });
 
+  // SOP Generation
+  const [sopResult, setSopResult] = useState<any>(null);
+  const [sopLoading, setSopLoading] = useState(false);
+  const [showSopModal, setShowSopModal] = useState(false);
+
   useEffect(() => {
     if (params.id) {
       loadProcess();
@@ -312,6 +317,29 @@ export default function ProcessDetailPage() {
       alert(error.response?.data?.message || 'Analiz başarısız oldu.');
     } finally {
       setAnalysisLoading(false);
+    }
+  };
+
+  const handleGenerateSOP = async () => {
+    if (steps.length === 0) {
+      alert('SOP oluşturmak için önce süreç adımları eklemelisiniz.');
+      return;
+    }
+
+    setSopLoading(true);
+    setSopResult(null);
+
+    try {
+      const result = await api.generateSOP(params.id as string);
+      setSopResult(result);
+      setShowSopModal(true);
+      // Reload process to see new version
+      await loadProcess();
+    } catch (error: any) {
+      console.error('SOP generation error:', error);
+      alert(error.response?.data?.message || 'SOP oluşturma başarısız oldu.');
+    } finally {
+      setSopLoading(false);
     }
   };
 
@@ -648,14 +676,24 @@ export default function ProcessDetailPage() {
               <h2 className="text-2xl font-bold text-gray-900">Süreç Adımları</h2>
               <div className="flex gap-3">
                 {steps.length > 0 && (
-                  <button
-                    onClick={handleAnalyzeProcess}
-                    disabled={analysisLoading}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
-                  >
-                    <Bot className="h-4 w-4 mr-2" />
-                    {analysisLoading ? 'Analiz Ediliyor...' : 'AI ile Analiz Et'}
-                  </button>
+                  <>
+                    <button
+                      onClick={handleAnalyzeProcess}
+                      disabled={analysisLoading}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
+                    >
+                      <Bot className="h-4 w-4 mr-2" />
+                      {analysisLoading ? 'Analiz Ediliyor...' : 'AI ile Analiz Et'}
+                    </button>
+                    <button
+                      onClick={handleGenerateSOP}
+                      disabled={sopLoading}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {sopLoading ? 'Oluşturuluyor...' : 'SOP Oluştur'}
+                    </button>
+                  </>
                 )}
                 {canEdit && (
                   <button
@@ -1112,6 +1150,116 @@ export default function ProcessDetailPage() {
               >
                 {actionLoading === 'delete' ? 'Siliniyor...' : 'Sil'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SOP Generation Result Modal */}
+      {showSopModal && sopResult && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-100 p-2 rounded-lg">
+                  <FileText className="h-6 w-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">SOP Başarıyla Oluşturuldu!</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Versiyon {sopResult.version?.version || process.currentVersion} oluşturuldu
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSopModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-6 border-2 border-indigo-200">
+              <h4 className="font-semibold text-gray-900 mb-3">Oluşturulan SOP İçeriği</h4>
+
+              {sopResult.sop && (
+                <div className="space-y-4">
+                  {/* Process Info */}
+                  <div className="bg-white rounded-lg p-4">
+                    <h5 className="font-semibold text-gray-800 mb-2">Süreç Bilgileri</h5>
+                    <p className="text-sm text-gray-700"><strong>Süreç Adı:</strong> {process.name}</p>
+                    {process.description && (
+                      <p className="text-sm text-gray-700 mt-1"><strong>Açıklama:</strong> {process.description}</p>
+                    )}
+                    {process.department && (
+                      <p className="text-sm text-gray-700 mt-1"><strong>Departman:</strong> {process.department}</p>
+                    )}
+                  </div>
+
+                  {/* SOP Steps */}
+                  {sopResult.sop.steps && sopResult.sop.steps.length > 0 && (
+                    <div className="bg-white rounded-lg p-4">
+                      <h5 className="font-semibold text-gray-800 mb-3">SOP Adımları ({sopResult.sop.steps.length})</h5>
+                      <div className="space-y-3">
+                        {sopResult.sop.steps.map((step: any, index: number) => (
+                          <div key={step.id || index} className="border-l-4 border-indigo-400 pl-4 py-2">
+                            <h6 className="font-medium text-gray-900">
+                              {index + 1}. {step.title}
+                            </h6>
+                            <p className="text-sm text-gray-700 mt-1">{step.description}</p>
+                            {step.estimatedMinutes && (
+                              <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                Tahmini süre: {step.estimatedMinutes} dakika
+                              </p>
+                            )}
+                            {/* Sub-steps */}
+                            {step.subSteps && step.subSteps.length > 0 && (
+                              <div className="ml-4 mt-2 space-y-2">
+                                {step.subSteps.map((subStep: any, subIndex: number) => (
+                                  <div key={subStep.id || subIndex} className="border-l-2 border-green-300 pl-3 py-1">
+                                    <p className="text-sm font-medium text-gray-800">
+                                      {index + 1}.{subIndex + 1}. {subStep.title}
+                                    </p>
+                                    <p className="text-xs text-gray-600">{subStep.description}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Generated Content */}
+                  {sopResult.sop.aiGeneratedContent && (
+                    <div className="bg-white rounded-lg p-4">
+                      <h5 className="font-semibold text-gray-800 mb-2">AI Önerileri</h5>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{sopResult.sop.aiGeneratedContent}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-6 flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowSopModal(false)}
+                  className="btn-secondary"
+                >
+                  Kapat
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSopModal(false);
+                    setActiveTab('history');
+                  }}
+                  className="btn-primary flex items-center"
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  Versiyon Geçmişine Git
+                </button>
+              </div>
             </div>
           </div>
         </div>

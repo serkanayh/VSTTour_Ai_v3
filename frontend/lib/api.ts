@@ -216,6 +216,11 @@ class ApiClient {
     return response.data;
   }
 
+  async generateSOP(processId: string) {
+    const response = await this.client.post(`/process/${processId}/generate-sop`);
+    return response.data;
+  }
+
   // Conversation endpoints
   async sendMessage(processId: string, message: string) {
     const response = await this.client.post(`/process/${processId}/conversation/message`, { message });
