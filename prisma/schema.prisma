@@ -1,0 +1,258 @@
+// Prisma Schema for VSTTour AI Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User Management
+// ============================================
+
+enum UserRole {
+  USER
+  DEVELOPER
+  MANAGER
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true)
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  processes        Process[]
+  processVersions  ProcessVersion[]
+  approvals        Approval[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users     User[]
+  processes Process[]
+
+  @@map("departments")
+}
+
+// ============================================
+// Process Management
+// ============================================
+
+enum ProcessStatus {
+  DRAFT
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+model Process {
+  id              String        @id @default(uuid())
+  processName     String
+  description     String?
+  status          ProcessStatus @default(DRAFT)
+  currentVersion  Int           @default(1)
+
+  // ROI Metrics
+  frequency       Float?        // tasks per day
+  duration        Float?        // minutes per task
+  costPerHour     Float?        // employee cost
+  automationScore Int?          // 0-10 scale
+
+  // Relations
+  createdById   String
+  createdBy     User         @relation(fields: [createdById], references: [id])
+  departmentId  String?
+  department    Department?  @relation(fields: [departmentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  versions  ProcessVersion[]
+  approvals Approval[]
+  exports   ProcessExport[]
+
+  @@map("processes")
+}
+
+model ProcessVersion {
+  id        String   @id @default(uuid())
+  version   Int
+
+  processId String
+  process   Process  @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  // SOP Data (stored as JSONB)
+  sopJson   Json     // Standardized Operating Procedure in JSON format
+  formData  Json     // Original form data collected
+
+  // Metadata
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([processId, version])
+  @@map("process_versions")
+}
+
+// ============================================
+// Approval Workflow
+// ============================================
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Approval {
+  id        String         @id @default(uuid())
+  status    ApprovalStatus @default(PENDING)
+
+  processId String
+  process   Process        @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  approverId String
+  approver   User          @relation(fields: [approverId], references: [id])
+
+  comments   String?
+
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@map("approvals")
+}
+
+// ============================================
+// AI Configuration
+// ============================================
+
+model AiConfiguration {
+  id                String   @id @default(uuid())
+  name              String   @unique
+
+  // AI Provider settings
+  provider          String   // openai, azure, google
+  apiKeyEncrypted   String   // AES-256 encrypted
+  model             String   // gpt-4, gpt-3.5-turbo, etc.
+  fallbackModel     String?
+
+  // Prompt templates
+  systemPrompt      String   @db.Text
+  modelMapping      Json?    // Additional model configurations
+
+  // Settings
+  maxTokens         Int      @default(2000)
+  temperature       Float    @default(0.7)
+
+  isActive          Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ai_configurations")
+}
+
+// ============================================
+// Integration & Export
+// ============================================
+
+enum ExportFormat {
+  N8N_WORKFLOW
+  JSON
+  PDF
+}
+
+model ProcessExport {
+  id          String       @id @default(uuid())
+
+  processId   String
+  process     Process      @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  format      ExportFormat
+  exportData  Json         // Exported workflow or document
+
+  createdAt   DateTime     @default(now())
+
+  @@map("process_exports")
+}
+
+// ============================================
+// Audit & Logging
+// ============================================
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  EXPORT
+  LOGIN
+  LOGOUT
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+
+  action      AuditAction
+  entity      String      // Table name
+  entityId    String      // Record ID
+
+  changes     Json?       // Before/after data
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// Session Management
+// ============================================
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  refreshToken String?  @unique
+
+  expiresAt    DateTime
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@map("sessions")
+}
