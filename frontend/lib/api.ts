@@ -193,6 +193,44 @@ class ApiClient {
     const response = await this.client.post(`/process/${processId}/steps/reorder`, { stepIds });
     return response.data;
   }
+
+  // Sub-Steps endpoints
+  async addSubStep(processId: string, stepId: string, subStepData: { title: string; description: string; estimatedMinutes?: number }) {
+    const response = await this.client.post(`/process/${processId}/steps/${stepId}/substeps`, subStepData);
+    return response.data;
+  }
+
+  async updateSubStep(processId: string, stepId: string, subStepId: string, subStepData: { title?: string; description?: string; estimatedMinutes?: number }) {
+    const response = await this.client.patch(`/process/${processId}/steps/${stepId}/substeps/${subStepId}`, subStepData);
+    return response.data;
+  }
+
+  async deleteSubStep(processId: string, stepId: string, subStepId: string) {
+    const response = await this.client.delete(`/process/${processId}/steps/${stepId}/substeps/${subStepId}`);
+    return response.data;
+  }
+
+  // AI Analysis endpoints
+  async analyzeProcess(processId: string) {
+    const response = await this.client.post(`/process/${processId}/analyze`);
+    return response.data;
+  }
+
+  // Conversation endpoints
+  async sendMessage(processId: string, message: string) {
+    const response = await this.client.post(`/process/${processId}/conversation/message`, { message });
+    return response.data;
+  }
+
+  async getConversationHistory(processId: string) {
+    const response = await this.client.get(`/process/${processId}/conversation/history`);
+    return response.data;
+  }
+
+  async clearConversation(processId: string) {
+    const response = await this.client.delete(`/process/${processId}/conversation`);
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();

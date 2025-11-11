@@ -93,6 +93,7 @@ export default function ProcessDetailPage() {
     if (params.id) {
       loadProcess();
       loadSteps();
+      loadConversation();
     }
   }, [params.id]);
 
@@ -123,6 +124,20 @@ export default function ProcessDetailPage() {
       console.error('Failed to load steps:', error);
     } finally {
       setStepsLoading(false);
+    }
+  };
+
+  const loadConversation = async () => {
+    try {
+      const data = await api.getConversationHistory(params.id as string);
+      if (data.messages && data.messages.length > 0) {
+        setAiMessages(data.messages.map((msg: any) => ({
+          role: msg.role,
+          content: msg.content,
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
     }
   };
 
@@ -242,19 +257,14 @@ export default function ProcessDetailPage() {
     setAiLoading(true);
 
     try {
-      // Simulated AI response - In real app, call backend API
-      setTimeout(() => {
-        const responses = [
-          'Bu süreci otomatikleştirmek için RPA (Robotic Process Automation) çözümleri kullanabilirsiniz. Özellikle tekrarlayan görevler için idealdir.',
-          'Adımları birleştirerek %30 zaman tasarrufu sağlayabilirsiniz. Örneğin "Veri Toplama" ve "Kontrol" adımları tek seferde yapılabilir.',
-          'Bu süreç için n8n workflow\'u oluşturabilir, API entegrasyonları ekleyebilir ve otomatik bildirimler ayarlayabilirsiniz.',
-        ];
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-        setAiMessages(prev => [...prev, { role: 'assistant', content: randomResponse }]);
-        setAiLoading(false);
-      }, 1000);
-    } catch (error) {
+      // Call real backend API
+      const response = await api.sendMessage(params.id as string, userMessage);
+      setAiMessages(prev => [...prev, { role: 'assistant', content: response.message }]);
+    } catch (error: any) {
       console.error('AI chat error:', error);
+      const errorMessage = error.response?.data?.message || 'AI yanıt veremedi. Lütfen tekrar deneyin.';
+      setAiMessages(prev => [...prev, { role: 'assistant', content: errorMessage }]);
+    } finally {
       setAiLoading(false);
     }
   };
