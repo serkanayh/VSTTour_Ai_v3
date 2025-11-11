@@ -23,6 +23,8 @@ import {
   FileText,
   Plus,
   History,
+  Lightbulb,
+  X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore, ProcessStatus, UserRole } from '@/lib/store';
@@ -88,6 +90,11 @@ export default function ProcessDetailPage() {
   ]);
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+
+  // AI Analysis
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -266,6 +273,27 @@ export default function ProcessDetailPage() {
       setAiMessages(prev => [...prev, { role: 'assistant', content: errorMessage }]);
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const handleAnalyzeProcess = async () => {
+    if (steps.length === 0) {
+      alert('Analiz için önce süreç adımları eklemelisiniz.');
+      return;
+    }
+
+    setAnalysisLoading(true);
+    setShowAnalysis(false);
+
+    try {
+      const result = await api.analyzeProcess(params.id as string);
+      setAnalysisResult(result.analysis);
+      setShowAnalysis(true);
+    } catch (error: any) {
+      console.error('Analysis error:', error);
+      alert(error.response?.data?.message || 'Analiz başarısız oldu.');
+    } finally {
+      setAnalysisLoading(false);
     }
   };
 
@@ -537,20 +565,85 @@ export default function ProcessDetailPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">Süreç Adımları</h2>
-              {canEdit && (
-                <button
-                  onClick={() => {
-                    setEditingStep(null);
-                    setStepFormData({ title: '', description: '', estimatedMinutes: '' });
-                    setShowStepForm(true);
-                  }}
-                  className="btn-primary flex items-center"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Yeni Adım
-                </button>
-              )}
+              <div className="flex gap-3">
+                {steps.length > 0 && (
+                  <button
+                    onClick={handleAnalyzeProcess}
+                    disabled={analysisLoading}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
+                  >
+                    <Bot className="h-4 w-4 mr-2" />
+                    {analysisLoading ? 'Analiz Ediliyor...' : 'AI ile Analiz Et'}
+                  </button>
+                )}
+                {canEdit && (
+                  <button
+                    onClick={() => {
+                      setEditingStep(null);
+                      setStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                      setShowStepForm(true);
+                    }}
+                    className="btn-primary flex items-center"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Yeni Adım
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* AI Analysis Results */}
+            {showAnalysis && analysisResult && (
+              <div className="card bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200">
+                <div className="flex items-start gap-3 mb-4">
+                  <Bot className="h-6 w-6 text-purple-600 flex-shrink-0 mt-1" />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Analiz Sonucu</h3>
+                    <p className="text-gray-700 mb-4">{analysisResult.overall}</p>
+
+                    {analysisResult.issues && analysisResult.issues.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="font-semibold text-red-700 mb-2 flex items-center">
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          Tespit Edilen Sorunlar ({analysisResult.issues.length})
+                        </h4>
+                        <ul className="space-y-2">
+                          {analysisResult.issues.map((issue: any, idx: number) => (
+                            <li key={idx} className="bg-white rounded-lg p-3 border border-red-200">
+                              <span className="font-medium text-red-700">Adım {issue.stepNumber}:</span>{' '}
+                              <span className="text-gray-700">{issue.issue}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {analysisResult.suggestions && analysisResult.suggestions.length > 0 && (
+                      <div>
+                        <h4 className="font-semibold text-green-700 mb-2 flex items-center">
+                          <Lightbulb className="h-4 w-4 mr-2" />
+                          İyileştirme Önerileri ({analysisResult.suggestions.length})
+                        </h4>
+                        <ul className="space-y-2">
+                          {analysisResult.suggestions.map((suggestion: any, idx: number) => (
+                            <li key={idx} className="bg-white rounded-lg p-3 border border-green-200">
+                              <span className="font-medium text-green-700">Adım {suggestion.stepNumber}:</span>{' '}
+                              <span className="text-gray-700">{suggestion.suggestion}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowAnalysis(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Step Form Modal */}
             {showStepForm && (
