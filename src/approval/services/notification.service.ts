@@ -1,39 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EmailService } from '../../email/email.service';
 
 @Injectable()
 export class NotificationService {
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private emailService: EmailService,
+  ) {}
 
   async sendApprovalRequest(managerEmail: string, process: any): Promise<void> {
-    // In production, integrate with actual email service (SendGrid, AWS SES, etc.)
     console.log(`📧 Sending approval request to ${managerEmail}`);
     console.log(`Process: ${process.processName}`);
     console.log(`Creator: ${process.createdBy.name} (${process.createdBy.email})`);
 
-    // Placeholder for actual email sending
-    const emailData = {
-      to: managerEmail,
-      subject: `Approval Request: ${process.processName}`,
-      body: `
-        Hello,
-
-        A new process requires your approval:
-
-        Process Name: ${process.processName}
-        Description: ${process.description || 'N/A'}
-        Created by: ${process.createdBy.name}
-        Department: ${process.department?.name || 'N/A'}
-
-        Please review and approve/reject this process in the VSTTour AI platform.
-
-        Best regards,
-        VSTTour AI System
-      `,
-    };
-
-    // TODO: Integrate with SMTP or email service
-    // await this.emailService.send(emailData);
+    // Send actual email notification
+    try {
+      await this.emailService.sendProcessSubmittedEmail(
+        managerEmail,
+        'Manager', // We don't have the manager's name in this context
+        process.processName,
+        process.createdBy.name,
+        process.id,
+      );
+    } catch (error) {
+      console.error('Failed to send approval request email:', error);
+      // Don't throw - we still want the approval request to be created
+    }
 
     return Promise.resolve();
   }
@@ -48,26 +41,31 @@ export class NotificationService {
     console.log(`Process: ${process.processName}`);
     console.log(`Status: ${approved ? 'APPROVED' : 'REJECTED'}`);
 
-    const emailData = {
-      to: creatorEmail,
-      subject: `Process ${approved ? 'Approved' : 'Rejected'}: ${process.processName}`,
-      body: `
-        Hello,
+    // Send actual email notification
+    try {
+      if (approved) {
+        await this.emailService.sendProcessApprovalEmail(
+          creatorEmail,
+          process.createdBy.name || 'User',
+          process.processName,
+          'Manager', // We don't have approver name in this context
+          new Date(),
+        );
+      } else {
+        await this.emailService.sendProcessRejectionEmail(
+          creatorEmail,
+          process.createdBy.name || 'User',
+          process.processName,
+          'Manager', // We don't have rejector name in this context
+          comments || 'No reason provided',
+          new Date(),
+        );
+      }
+    } catch (error) {
+      console.error('Failed to send approval result email:', error);
+      // Don't throw - we still want the approval/rejection to succeed
+    }
 
-        Your process has been ${approved ? 'approved' : 'rejected'}:
-
-        Process Name: ${process.processName}
-        Status: ${approved ? 'APPROVED ✅' : 'REJECTED ❌'}
-        ${comments ? `Comments: ${comments}` : ''}
-
-        ${approved ? 'You can now export this process to n8n or other automation tools.' : 'Please review the feedback and make necessary changes.'}
-
-        Best regards,
-        VSTTour AI System
-      `,
-    };
-
-    // TODO: Integrate with SMTP or email service
     return Promise.resolve();
   }
 }

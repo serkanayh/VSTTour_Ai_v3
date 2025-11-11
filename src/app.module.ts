@@ -11,6 +11,7 @@ import { AiOrchestratorModule } from './ai-orchestrator/ai-orchestrator.module';
 import { ApprovalModule } from './approval/approval.module';
 import { IntegrationModule } from './integration/integration.module';
 import { AdminModule } from './admin/admin.module';
+import { EmailModule } from './email/email.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -46,6 +47,7 @@ import * as Joi from 'joi';
     ApprovalModule,
     IntegrationModule,
     AdminModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
