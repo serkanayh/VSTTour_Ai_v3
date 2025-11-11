@@ -18,6 +18,11 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  ListChecks,
+  MessageSquare,
+  FileText,
+  Plus,
+  History,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore, ProcessStatus, UserRole } from '@/lib/store';
@@ -30,9 +35,13 @@ interface ProcessDetail {
   currentVersion: number;
   department?: string;
   estimatedTimeMinutes?: number;
+  tasksPerDay?: number;
+  minutesPerTask?: number;
+  costPerHour?: number;
   createdBy?: any;
   createdAt: string;
   updatedAt: string;
+  versions?: any[];
 }
 
 interface ROIData {
@@ -45,6 +54,16 @@ interface ROIData {
   paybackPeriod: number;
 }
 
+interface ProcessStep {
+  id: string;
+  order: number;
+  title: string;
+  description: string;
+  estimatedMinutes?: number;
+}
+
+type TabType = 'overview' | 'steps' | 'ai-chat' | 'history';
+
 export default function ProcessDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -54,6 +73,39 @@ export default function ProcessDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+  // Process steps
+  const [steps, setSteps] = useState<ProcessStep[]>([
+    {
+      id: '1',
+      order: 1,
+      title: 'Veriyi Topla',
+      description: 'İlgili tüm belge ve bilgileri sisteme yükleyin',
+      estimatedMinutes: 5,
+    },
+    {
+      id: '2',
+      order: 2,
+      title: 'Kontrol Et',
+      description: 'Yüklenen verilerin doğruluğunu kontrol edin',
+      estimatedMinutes: 10,
+    },
+    {
+      id: '3',
+      order: 3,
+      title: 'Onay Al',
+      description: 'Yöneticiden onay alın',
+      estimatedMinutes: 15,
+    },
+  ]);
+
+  // AI Chat
+  const [aiMessages, setAiMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([
+    { role: 'assistant', content: 'Merhaba! Bu süreç hakkında sorularınız varsa yardımcı olabilirim. Örneğin, adımları optimize etmek veya otomasyon önerileri almak isterseniz sorabilirsiniz.' },
+  ]);
+  const [aiInput, setAiInput] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -68,7 +120,7 @@ export default function ProcessDetailPage() {
       setProcess(data);
 
       // Load ROI if process has estimation data
-      if (data.estimatedTimeMinutes) {
+      if (data.tasksPerDay && data.minutesPerTask && data.costPerHour) {
         const roiData = await api.calculateROI(params.id as string);
         setRoi(roiData);
       }
@@ -112,7 +164,7 @@ export default function ProcessDetailPage() {
     try {
       setActionLoading('analyze');
       await api.analyzeProcess(params.id as string);
-      alert('AI analysis started. This may take a few moments.');
+      alert('AI analizi başlatıldı. Bu işlem birkaç dakika sürebilir.');
       await loadProcess();
     } catch (error) {
       console.error('Failed to analyze process:', error);
@@ -126,12 +178,38 @@ export default function ProcessDetailPage() {
     try {
       setActionLoading('export');
       await api.exportToN8n(params.id as string);
-      alert('Process exported to n8n successfully!');
+      alert('Process başarıyla n8n\'e export edildi!');
     } catch (error: any) {
       console.error('Failed to export:', error);
       alert(error.response?.data?.message || 'Failed to export to n8n');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleAIChat = async () => {
+    if (!aiInput.trim()) return;
+
+    const userMessage = aiInput;
+    setAiInput('');
+    setAiMessages([...aiMessages, { role: 'user', content: userMessage }]);
+    setAiLoading(true);
+
+    try {
+      // Simulated AI response - In real app, call backend API
+      setTimeout(() => {
+        const responses = [
+          'Bu süreci otomatikleştirmek için RPA (Robotic Process Automation) çözümleri kullanabilirsiniz. Özellikle tekrarlayan görevler için idealdir.',
+          'Adımları birleştirerek %30 zaman tasarrufu sağlayabilirsiniz. Örneğin "Veri Toplama" ve "Kontrol" adımları tek seferde yapılabilir.',
+          'Bu süreç için n8n workflow\'u oluşturabilir, API entegrasyonları ekleyebilir ve otomatik bildirimler ayarlayabilirsiniz.',
+        ];
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        setAiMessages(prev => [...prev, { role: 'assistant', content: randomResponse }]);
+        setAiLoading(false);
+      }, 1000);
+    } catch (error) {
+      console.error('AI chat error:', error);
+      setAiLoading(false);
     }
   };
 
@@ -147,9 +225,9 @@ export default function ProcessDetailPage() {
     return (
       <div className="text-center py-12">
         <AlertCircle className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Process Not Found</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Process Bulunamadı</h2>
         <Link href="/dashboard/processes" className="text-primary-600 hover:text-primary-700">
-          ← Back to Processes
+          ← Süreçlere Dön
         </Link>
       </div>
     );
@@ -159,6 +237,13 @@ export default function ProcessDetailPage() {
   const canSubmit = process.status === ProcessStatus.DRAFT && canEdit;
   const canExport = process.status === ProcessStatus.APPROVED &&
     (user?.role === UserRole.DEVELOPER || user?.role === UserRole.ADMIN);
+
+  const tabs = [
+    { id: 'overview' as TabType, label: 'Genel Bakış', icon: FileText },
+    { id: 'steps' as TabType, label: 'Adımlar', icon: ListChecks },
+    { id: 'ai-chat' as TabType, label: 'AI Asistan', icon: MessageSquare },
+    { id: 'history' as TabType, label: 'Geçmiş', icon: History },
+  ];
 
   return (
     <div className="space-y-6">
@@ -173,7 +258,7 @@ export default function ProcessDetailPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{process.name}</h1>
-            <p className="text-gray-600 mt-1">Version {process.currentVersion}</p>
+            <p className="text-gray-600 mt-1">Versiyon {process.currentVersion}</p>
           </div>
         </div>
 
@@ -185,14 +270,14 @@ export default function ProcessDetailPage() {
                 className="btn-secondary flex items-center"
               >
                 <Edit className="h-4 w-4 mr-2" />
-                Edit
+                Düzenle
               </Link>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="bg-red-100 text-red-700 hover:bg-red-200 font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete
+                Sil
               </button>
             </>
           )}
@@ -218,162 +303,347 @@ export default function ProcessDetailPage() {
         </span>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left Column - Details */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Description */}
-          <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Description</h2>
-            <p className="text-gray-700 whitespace-pre-wrap">
-              {process.description || 'No description provided'}
-            </p>
-          </div>
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex space-x-8">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === tab.id
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <tab.icon className="h-5 w-5" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-          {/* ROI Metrics */}
-          {roi && (
-            <div className="card">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="h-6 w-6 text-primary-600" />
-                <h2 className="text-xl font-semibold text-gray-900">ROI Analysis</h2>
+      {/* Tab Content */}
+      <div className="min-h-[400px]">
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Left Column */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Description */}
+              <div className="card">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Açıklama</h2>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {process.description || 'Açıklama eklenmemiş'}
+                </p>
               </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Monthly Cost</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    ${roi.monthlyCost.toFixed(2)}
-                  </p>
+
+              {/* ROI Metrics */}
+              {roi && (
+                <div className="card">
+                  <div className="flex items-center gap-2 mb-4">
+                    <BarChart3 className="h-6 w-6 text-primary-600" />
+                    <h2 className="text-xl font-semibold text-gray-900">ROI Analizi</h2>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600">Aylık Maliyet</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        ₺{roi.monthlyCost.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600">Potansiyel Aylık Tasarruf</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        ₺{roi.potentialMonthlySavings.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600">ROI Yüzdesi</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        %{roi.roi.toFixed(1)}
+                      </p>
+                    </div>
+                    <div className="bg-orange-50 p-4 rounded-lg">
+                      <p className="text-sm text-gray-600">Geri Ödeme Süresi</p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {roi.paybackPeriod.toFixed(1)} ay
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Potential Monthly Savings</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    ${roi.potentialMonthlySavings.toFixed(2)}
-                  </p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">ROI Percentage</p>
-                  <p className="text-2xl font-bold text-purple-600">
-                    {roi.roi.toFixed(1)}%
-                  </p>
-                </div>
-                <div className="bg-orange-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Payback Period</p>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {roi.paybackPeriod.toFixed(1)} months
-                  </p>
+              )}
+
+              {/* Actions */}
+              <div className="card">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">İşlemler</h2>
+                <div className="flex flex-wrap gap-3">
+                  {canSubmit && (
+                    <button
+                      onClick={handleSubmitForApproval}
+                      disabled={actionLoading === 'submit'}
+                      className="btn-primary flex items-center disabled:opacity-50"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      {actionLoading === 'submit' ? 'Gönderiliyor...' : 'Onaya Gönder'}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleAnalyze}
+                    disabled={actionLoading === 'analyze'}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
+                  >
+                    <Bot className="h-4 w-4 mr-2" />
+                    {actionLoading === 'analyze' ? 'Analiz Ediliyor...' : 'AI Analizi'}
+                  </button>
+
+                  {canExport && (
+                    <button
+                      onClick={handleExport}
+                      disabled={actionLoading === 'export'}
+                      className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {actionLoading === 'export' ? 'Export Ediliyor...' : 'n8n\'e Export Et'}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Actions */}
-          <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Actions</h2>
-            <div className="flex flex-wrap gap-3">
-              {canSubmit && (
-                <button
-                  onClick={handleSubmitForApproval}
-                  disabled={actionLoading === 'submit'}
-                  className="btn-primary flex items-center disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  {actionLoading === 'submit' ? 'Submitting...' : 'Submit for Approval'}
-                </button>
-              )}
+            {/* Right Column - Metadata */}
+            <div className="space-y-6">
+              <div className="card">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Detaylar</h2>
+                <div className="space-y-4">
+                  {process.department && (
+                    <div className="flex items-start gap-3">
+                      <Building className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Departman</p>
+                        <p className="font-medium text-gray-900">{process.department}</p>
+                      </div>
+                    </div>
+                  )}
 
-              <button
-                onClick={handleAnalyze}
-                disabled={actionLoading === 'analyze'}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
-              >
-                <Bot className="h-4 w-4 mr-2" />
-                {actionLoading === 'analyze' ? 'Analyzing...' : 'AI Analysis'}
+                  {process.estimatedTimeMinutes && (
+                    <div className="flex items-start gap-3">
+                      <Clock className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Tahmini Süre</p>
+                        <p className="font-medium text-gray-900">
+                          {process.estimatedTimeMinutes} dakika
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {process.createdBy && (
+                    <div className="flex items-start gap-3">
+                      <User className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-600">Oluşturan</p>
+                        <p className="font-medium text-gray-900">
+                          {process.createdBy.name}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-600">Oluşturulma</p>
+                      <p className="font-medium text-gray-900">
+                        {new Date(process.createdAt).toLocaleDateString('tr-TR')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-600">Son Güncelleme</p>
+                      <p className="font-medium text-gray-900">
+                        {new Date(process.updatedAt).toLocaleDateString('tr-TR')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Steps Tab */}
+        {activeTab === 'steps' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">Süreç Adımları</h2>
+              <button className="btn-primary flex items-center">
+                <Plus className="h-4 w-4 mr-2" />
+                Yeni Adım
               </button>
+            </div>
 
-              {canExport && (
-                <button
-                  onClick={handleExport}
-                  disabled={actionLoading === 'export'}
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {actionLoading === 'export' ? 'Exporting...' : 'Export to n8n'}
+            {steps.length === 0 ? (
+              <div className="card text-center py-12">
+                <ListChecks className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Henüz Adım Eklenmemiş
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Bu süreç için adımları tanımlayarak başlayın
+                </p>
+                <button className="btn-primary inline-flex items-center">
+                  <Plus className="h-5 w-5 mr-2" />
+                  İlk Adımı Ekle
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {steps.map((step, index) => (
+                  <div key={step.id} className="card hover:shadow-lg transition-shadow">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                        <span className="text-primary-600 font-bold">{step.order}</span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          {step.title}
+                        </h3>
+                        <p className="text-gray-600 mb-3">{step.description}</p>
+                        {step.estimatedMinutes && (
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Clock className="h-4 w-4 mr-1" />
+                            ~{step.estimatedMinutes} dakika
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button className="text-gray-400 hover:text-primary-600">
+                          <Edit className="h-5 w-5" />
+                        </button>
+                        <button className="text-gray-400 hover:text-red-600">
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Right Column - Metadata */}
-        <div className="space-y-6">
+        {/* AI Chat Tab */}
+        {activeTab === 'ai-chat' && (
           <div className="card">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Details</h2>
-            <div className="space-y-4">
-              {process.department && (
-                <div className="flex items-start gap-3">
-                  <Building className="h-5 w-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-600">Department</p>
-                    <p className="font-medium text-gray-900">{process.department}</p>
+            <div className="flex items-center gap-2 mb-4">
+              <Bot className="h-6 w-6 text-primary-600" />
+              <h2 className="text-xl font-semibold text-gray-900">AI Asistan</h2>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 h-96 overflow-y-auto">
+              {aiMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`mb-4 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      msg.role === 'user'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    <p className="text-sm">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+              {aiLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="flex gap-2">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
                   </div>
                 </div>
               )}
+            </div>
 
-              {process.estimatedTimeMinutes && (
-                <div className="flex items-start gap-3">
-                  <Clock className="h-5 w-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-600">Estimated Time</p>
-                    <p className="font-medium text-gray-900">
-                      {process.estimatedTimeMinutes} minutes
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aiInput}
+                onChange={(e) => setAiInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAIChat()}
+                placeholder="Süreci geliştirmek için soru sorun..."
+                className="input flex-1"
+                disabled={aiLoading}
+              />
+              <button
+                onClick={handleAIChat}
+                disabled={aiLoading || !aiInput.trim()}
+                className="btn-primary disabled:opacity-50"
+              >
+                <Send className="h-5 w-5" />
+              </button>
+            </div>
 
-              {process.createdBy && (
-                <div className="flex items-start gap-3">
-                  <User className="h-5 w-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-600">Created By</p>
-                    <p className="font-medium text-gray-900">
-                      {process.createdBy.name}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-start gap-3">
-                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Created</p>
-                  <p className="font-medium text-gray-900">
-                    {new Date(process.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-600">Last Updated</p>
-                  <p className="font-medium text-gray-900">
-                    {new Date(process.updatedAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>İpucu:</strong> AI asistanına süreç optimizasyonu, otomasyon önerileri veya adım iyileştirmeleri hakkında sorular sorabilirsiniz.
+              </p>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* History Tab */}
+        {activeTab === 'history' && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900">Versiyon Geçmişi</h2>
+
+            {process.versions && process.versions.length > 0 ? (
+              <div className="space-y-3">
+                {process.versions.map((version: any) => (
+                  <div key={version.id} className="card">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          Versiyon {version.version}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {new Date(version.createdAt).toLocaleDateString('tr-TR')}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        {version.version === process.currentVersion ? 'Aktif' : 'Eski'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="card text-center py-12">
+                <History className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600">Henüz versiyon geçmişi yok</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Process</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Süreci Sil</h3>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this process? This action cannot be undone.
+              Bu süreci silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -381,14 +651,14 @@ export default function ProcessDetailPage() {
                 className="btn-secondary"
                 disabled={actionLoading === 'delete'}
               >
-                Cancel
+                İptal
               </button>
               <button
                 onClick={handleDelete}
                 disabled={actionLoading === 'delete'}
                 className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
               >
-                {actionLoading === 'delete' ? 'Deleting...' : 'Delete'}
+                {actionLoading === 'delete' ? 'Siliniyor...' : 'Sil'}
               </button>
             </div>
           </div>
