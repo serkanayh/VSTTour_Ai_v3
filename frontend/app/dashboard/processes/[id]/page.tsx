@@ -542,25 +542,25 @@ export default function ProcessDetailPage() {
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Aylık Maliyet</p>
                       <p className="text-2xl font-bold text-blue-600">
-                        ₺{roi.monthlyCost.toFixed(2)}
+                        ₺{roi.monthlyCost?.toFixed(2) || '0.00'}
                       </p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Potansiyel Aylık Tasarruf</p>
                       <p className="text-2xl font-bold text-green-600">
-                        ₺{roi.potentialMonthlySavings.toFixed(2)}
+                        ₺{roi.potentialMonthlySavings?.toFixed(2) || '0.00'}
                       </p>
                     </div>
                     <div className="bg-purple-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">ROI Yüzdesi</p>
                       <p className="text-2xl font-bold text-purple-600">
-                        %{roi.roi.toFixed(1)}
+                        %{roi.roi?.toFixed(1) || '0.0'}
                       </p>
                     </div>
                     <div className="bg-orange-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Geri Ödeme Süresi</p>
                       <p className="text-2xl font-bold text-orange-600">
-                        {roi.paybackPeriod.toFixed(1)} ay
+                        {roi.paybackPeriod?.toFixed(1) || '0.0'} ay
                       </p>
                     </div>
                   </div>
