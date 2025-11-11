@@ -76,29 +76,11 @@ export default function ProcessDetailPage() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
 
   // Process steps
-  const [steps, setSteps] = useState<ProcessStep[]>([
-    {
-      id: '1',
-      order: 1,
-      title: 'Veriyi Topla',
-      description: 'İlgili tüm belge ve bilgileri sisteme yükleyin',
-      estimatedMinutes: 5,
-    },
-    {
-      id: '2',
-      order: 2,
-      title: 'Kontrol Et',
-      description: 'Yüklenen verilerin doğruluğunu kontrol edin',
-      estimatedMinutes: 10,
-    },
-    {
-      id: '3',
-      order: 3,
-      title: 'Onay Al',
-      description: 'Yöneticiden onay alın',
-      estimatedMinutes: 15,
-    },
-  ]);
+  const [steps, setSteps] = useState<ProcessStep[]>([]);
+  const [stepsLoading, setStepsLoading] = useState(false);
+  const [showStepForm, setShowStepForm] = useState(false);
+  const [editingStep, setEditingStep] = useState<ProcessStep | null>(null);
+  const [stepFormData, setStepFormData] = useState({ title: '', description: '', estimatedMinutes: '' });
 
   // AI Chat
   const [aiMessages, setAiMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([
@@ -110,6 +92,7 @@ export default function ProcessDetailPage() {
   useEffect(() => {
     if (params.id) {
       loadProcess();
+      loadSteps();
     }
   }, [params.id]);
 
@@ -128,6 +111,69 @@ export default function ProcessDetailPage() {
       console.error('Failed to load process:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadSteps = async () => {
+    try {
+      setStepsLoading(true);
+      const data = await api.getProcessSteps(params.id as string);
+      setSteps(data.steps || []);
+    } catch (error) {
+      console.error('Failed to load steps:', error);
+    } finally {
+      setStepsLoading(false);
+    }
+  };
+
+  const handleAddStep = async () => {
+    if (!stepFormData.title || !stepFormData.description) {
+      alert('Başlık ve açıklama zorunludur');
+      return;
+    }
+
+    try {
+      const stepData = {
+        title: stepFormData.title,
+        description: stepFormData.description,
+        estimatedMinutes: stepFormData.estimatedMinutes ? parseInt(stepFormData.estimatedMinutes) : undefined,
+      };
+
+      if (editingStep) {
+        await api.updateProcessStep(params.id as string, editingStep.id, stepData);
+      } else {
+        await api.addProcessStep(params.id as string, stepData);
+      }
+
+      await loadSteps();
+      setStepFormData({ title: '', description: '', estimatedMinutes: '' });
+      setShowStepForm(false);
+      setEditingStep(null);
+    } catch (error) {
+      console.error('Failed to save step:', error);
+      alert('Adım kaydedilemedi');
+    }
+  };
+
+  const handleEditStep = (step: ProcessStep) => {
+    setEditingStep(step);
+    setStepFormData({
+      title: step.title,
+      description: step.description,
+      estimatedMinutes: step.estimatedMinutes?.toString() || '',
+    });
+    setShowStepForm(true);
+  };
+
+  const handleDeleteStep = async (stepId: string) => {
+    if (!confirm('Bu adımı silmek istediğinizden emin misiniz?')) return;
+
+    try {
+      await api.deleteProcessStep(params.id as string, stepId);
+      await loadSteps();
+    } catch (error) {
+      console.error('Failed to delete step:', error);
+      alert('Adım silinemedi');
     }
   };
 
@@ -481,13 +527,82 @@ export default function ProcessDetailPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">Süreç Adımları</h2>
-              <button className="btn-primary flex items-center">
-                <Plus className="h-4 w-4 mr-2" />
-                Yeni Adım
-              </button>
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    setEditingStep(null);
+                    setStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                    setShowStepForm(true);
+                  }}
+                  className="btn-primary flex items-center"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Yeni Adım
+                </button>
+              )}
             </div>
 
-            {steps.length === 0 ? (
+            {/* Step Form Modal */}
+            {showStepForm && (
+              <div className="card bg-blue-50">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {editingStep ? 'Adımı Düzenle' : 'Yeni Adım Ekle'}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="label">Başlık *</label>
+                    <input
+                      type="text"
+                      value={stepFormData.title}
+                      onChange={(e) => setStepFormData({ ...stepFormData, title: e.target.value })}
+                      className="input"
+                      placeholder="ör. Veriyi Topla"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Açıklama *</label>
+                    <textarea
+                      value={stepFormData.description}
+                      onChange={(e) => setStepFormData({ ...stepFormData, description: e.target.value })}
+                      className="input min-h-[100px]"
+                      placeholder="Bu adımda ne yapılacağını açıklayın..."
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Tahmini Süre (dakika)</label>
+                    <input
+                      type="number"
+                      value={stepFormData.estimatedMinutes}
+                      onChange={(e) => setStepFormData({ ...stepFormData, estimatedMinutes: e.target.value })}
+                      className="input"
+                      placeholder="15"
+                      min="0"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={handleAddStep} className="btn-primary">
+                      {editingStep ? 'Güncelle' : 'Ekle'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowStepForm(false);
+                        setEditingStep(null);
+                        setStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                      }}
+                      className="btn-secondary"
+                    >
+                      İptal
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {stepsLoading ? (
+              <div className="card text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+              </div>
+            ) : steps.length === 0 ? (
               <div className="card text-center py-12">
                 <ListChecks className="h-16 w-16 mx-auto text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -496,10 +611,19 @@ export default function ProcessDetailPage() {
                 <p className="text-gray-600 mb-6">
                   Bu süreç için adımları tanımlayarak başlayın
                 </p>
-                <button className="btn-primary inline-flex items-center">
-                  <Plus className="h-5 w-5 mr-2" />
-                  İlk Adımı Ekle
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => {
+                      setEditingStep(null);
+                      setStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                      setShowStepForm(true);
+                    }}
+                    className="btn-primary inline-flex items-center"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    İlk Adımı Ekle
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -521,14 +645,22 @@ export default function ProcessDetailPage() {
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        <button className="text-gray-400 hover:text-primary-600">
-                          <Edit className="h-5 w-5" />
-                        </button>
-                        <button className="text-gray-400 hover:text-red-600">
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </div>
+                      {canEdit && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditStep(step)}
+                            className="text-gray-400 hover:text-primary-600"
+                          >
+                            <Edit className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStep(step.id)}
+                            className="text-gray-400 hover:text-red-600"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

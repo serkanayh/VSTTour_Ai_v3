@@ -167,6 +167,32 @@ class ApiClient {
     const response = await this.client.get('/admin/audit-logs', { params });
     return response.data;
   }
+
+  // Process Steps endpoints
+  async getProcessSteps(processId: string) {
+    const response = await this.client.get(`/process/${processId}/steps`);
+    return response.data;
+  }
+
+  async addProcessStep(processId: string, stepData: { title: string; description: string; estimatedMinutes?: number }) {
+    const response = await this.client.post(`/process/${processId}/steps`, stepData);
+    return response.data;
+  }
+
+  async updateProcessStep(processId: string, stepId: string, stepData: { title?: string; description?: string; estimatedMinutes?: number }) {
+    const response = await this.client.patch(`/process/${processId}/steps/${stepId}`, stepData);
+    return response.data;
+  }
+
+  async deleteProcessStep(processId: string, stepId: string) {
+    const response = await this.client.delete(`/process/${processId}/steps/${stepId}`);
+    return response.data;
+  }
+
+  async reorderProcessSteps(processId: string, stepIds: string[]) {
+    const response = await this.client.post(`/process/${processId}/steps/reorder`, { stepIds });
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();
