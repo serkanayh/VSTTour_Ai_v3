@@ -44,7 +44,7 @@ export class ProcessService {
             createdAt: new Date().toISOString(),
           },
         },
-        formData: createProcessDto,
+        formData: JSON.parse(JSON.stringify(createProcessDto)),
         createdById: userId,
       },
     });
@@ -190,9 +190,30 @@ export class ProcessService {
       throw new ForbiddenException('Cannot update approved process');
     }
 
+    // Map frontend fields to database schema
+    const updateData: any = {};
+    if (updateProcessDto.name !== undefined) {
+      updateData.processName = updateProcessDto.name;
+    }
+    if (updateProcessDto.description !== undefined) {
+      updateData.description = updateProcessDto.description;
+    }
+    if (updateProcessDto.tasksPerDay !== undefined) {
+      updateData.frequency = updateProcessDto.tasksPerDay;
+    }
+    if (updateProcessDto.minutesPerTask !== undefined) {
+      updateData.duration = updateProcessDto.minutesPerTask;
+    }
+    if (updateProcessDto.costPerHour !== undefined) {
+      updateData.costPerHour = updateProcessDto.costPerHour;
+    }
+    if (updateProcessDto.status !== undefined) {
+      updateData.status = updateProcessDto.status;
+    }
+
     const updated = await this.prisma.process.update({
       where: { id },
-      data: updateProcessDto,
+      data: updateData,
       include: {
         createdBy: {
           select: {
@@ -216,7 +237,23 @@ export class ProcessService {
       },
     });
 
-    return updated;
+    // Map database fields back to frontend format
+    return {
+      id: updated.id,
+      name: updated.processName,
+      description: updated.description,
+      status: updated.status,
+      currentVersion: updated.currentVersion,
+      department: updateProcessDto.department || null,
+      estimatedTimeMinutes: updated.duration,
+      tasksPerDay: updated.frequency,
+      minutesPerTask: updated.duration,
+      costPerHour: updated.costPerHour,
+      createdById: updated.createdById,
+      createdBy: updated.createdBy,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
   }
 
   async remove(id: string, userId: string, userRole: string) {
