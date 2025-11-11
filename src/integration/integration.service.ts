@@ -30,25 +30,18 @@ export class IntegrationService {
       },
     });
 
-    const process = {
-      ...processRecord,
-      versions: currentVersion ? [currentVersion] : [],
-    };
-
-    // Only approved processes can be exported
-    if (process.status !== ProcessStatus.APPROVED) {
-      throw new ForbiddenException('Only approved processes can be exported');
-    }
-
-    // Get the current version SOP
-    const currentVersion = process.versions[0];
     if (!currentVersion || !currentVersion.sopJson) {
       throw new BadRequestException('Process does not have a valid SOP');
     }
 
+    // Only approved processes can be exported
+    if (processRecord.status !== ProcessStatus.APPROVED) {
+      throw new ForbiddenException('Only approved processes can be exported');
+    }
+
     // Convert SOP to n8n workflow format
     const n8nWorkflow = this.n8nService.convertSOPToN8n(
-      process,
+      processRecord,
       currentVersion.sopJson as any,
     );
 
@@ -105,6 +98,10 @@ export class IntegrationService {
       throw new NotFoundException('Process not found');
     }
 
+    if (processRecord.status !== ProcessStatus.APPROVED) {
+      throw new ForbiddenException('Only approved processes can be exported');
+    }
+
     // Fetch the current version separately
     const currentVersion = await this.prisma.processVersion.findFirst({
       where: {
@@ -113,40 +110,29 @@ export class IntegrationService {
       },
     });
 
-    const process = {
-      ...processRecord,
-      versions: currentVersion ? [currentVersion] : [],
-    };
-
-    if (process.status !== ProcessStatus.APPROVED) {
-      throw new ForbiddenException('Only approved processes can be exported');
-    }
-
-    const currentVersion = process.versions[0];
-
     const jsonExport = {
-      processId: process.id,
-      processName: process.processName,
-      description: process.description,
-      status: process.status,
-      createdBy: process.createdBy,
-      department: process.department,
+      processId: processRecord.id,
+      processName: processRecord.processName,
+      description: processRecord.description,
+      status: processRecord.status,
+      createdBy: processRecord.createdBy,
+      department: processRecord.department,
       metrics: {
-        frequency: process.frequency,
-        duration: process.duration,
-        costPerHour: process.costPerHour,
-        automationScore: process.automationScore,
+        frequency: processRecord.frequency,
+        duration: processRecord.duration,
+        costPerHour: processRecord.costPerHour,
+        automationScore: processRecord.automationScore,
       },
       sop: currentVersion?.sopJson,
       formData: currentVersion?.formData,
-      version: process.currentVersion,
+      version: processRecord.currentVersion,
       exportedAt: new Date().toISOString(),
     };
 
     // Store export record
     const exportRecord = await this.prisma.processExport.create({
       data: {
-        processId: process.id,
+        processId: processRecord.id,
         format: ExportFormat.JSON,
         exportData: jsonExport,
       },
@@ -158,7 +144,7 @@ export class IntegrationService {
         userId,
         action: 'EXPORT',
         entity: 'Process',
-        entityId: process.id,
+        entityId: processRecord.id,
         changes: { format: 'JSON', exportId: exportRecord.id },
       },
     });
