@@ -337,7 +337,7 @@ export default function ProcessDetailPage() {
                   <div>
                     <p className="text-sm text-gray-600">Created By</p>
                     <p className="font-medium text-gray-900">
-                      {process.createdBy.firstName} {process.createdBy.lastName}
+                      {process.createdBy.name}
                     </p>
                   </div>
                 </div>

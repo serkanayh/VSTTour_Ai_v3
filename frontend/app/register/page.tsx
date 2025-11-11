@@ -9,8 +9,7 @@ import { api } from '@/lib/api';
 export default function RegisterPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -50,8 +49,7 @@ export default function RegisterPage() {
       await api.register({
         email: formData.email,
         password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+        name: formData.name,
         department: formData.department || undefined,
       });
 
@@ -111,40 +109,22 @@ export default function RegisterPage() {
               </div>
             )}
 
-            {/* Name Fields */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="firstName" className="label">
-                  First Name
-                </label>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder="John"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <label htmlFor="lastName" className="label">
-                  Last Name
-                </label>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder="Doe"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
+            {/* Name Field */}
+            <div>
+              <label htmlFor="name" className="label">
+                Full Name
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                value={formData.name}
+                onChange={handleChange}
+                className="input"
+                placeholder="John Doe"
+                required
+                disabled={isLoading}
+              />
             </div>
 
             {/* Email Field */}

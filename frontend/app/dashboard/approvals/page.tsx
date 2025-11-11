@@ -14,8 +14,7 @@ interface Approval {
     description?: string;
     department?: string;
     createdBy?: {
-      firstName: string;
-      lastName: string;
+      name: string;
       email: string;
     };
   };
@@ -152,8 +151,7 @@ export default function ApprovalsPage() {
                     {approval.process.createdBy && (
                       <span className="flex items-center gap-1">
                         <User className="h-4 w-4" />
-                        {approval.process.createdBy.firstName}{' '}
-                        {approval.process.createdBy.lastName}
+                        {approval.process.createdBy.name}
                       </span>
                     )}
                     <span className="flex items-center gap-1">

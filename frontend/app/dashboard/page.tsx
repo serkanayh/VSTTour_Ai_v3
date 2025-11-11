@@ -104,7 +104,7 @@ export default function DashboardPage() {
       {/* Welcome Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.firstName}!
+          Welcome back, {user?.name.split(' ')[0]}!
         </h1>
         <p className="text-gray-600 mt-2">
           Here's what's happening with your processes today.
