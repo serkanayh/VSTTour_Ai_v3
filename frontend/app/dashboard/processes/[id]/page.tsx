@@ -25,6 +25,8 @@ import {
   History,
   Lightbulb,
   X,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore, ProcessStatus, UserRole } from '@/lib/store';
@@ -56,12 +58,21 @@ interface ROIData {
   paybackPeriod: number;
 }
 
+interface SubStep {
+  id: string;
+  order: number;
+  title: string;
+  description: string;
+  estimatedMinutes?: number;
+}
+
 interface ProcessStep {
   id: string;
   order: number;
   title: string;
   description: string;
   estimatedMinutes?: number;
+  subSteps?: SubStep[];
 }
 
 type TabType = 'overview' | 'steps' | 'ai-chat' | 'history';
@@ -95,6 +106,13 @@ export default function ProcessDetailPage() {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
+
+  // Sub-steps
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  const [showSubStepForm, setShowSubStepForm] = useState(false);
+  const [currentStepId, setCurrentStepId] = useState<string | null>(null);
+  const [editingSubStep, setEditingSubStep] = useState<{ stepId: string; subStep: SubStep } | null>(null);
+  const [subStepFormData, setSubStepFormData] = useState({ title: '', description: '', estimatedMinutes: '' });
 
   useEffect(() => {
     if (params.id) {
@@ -294,6 +312,69 @@ export default function ProcessDetailPage() {
       alert(error.response?.data?.message || 'Analiz başarısız oldu.');
     } finally {
       setAnalysisLoading(false);
+    }
+  };
+
+  const toggleStepExpansion = (stepId: string) => {
+    const newExpanded = new Set(expandedSteps);
+    if (newExpanded.has(stepId)) {
+      newExpanded.delete(stepId);
+    } else {
+      newExpanded.add(stepId);
+    }
+    setExpandedSteps(newExpanded);
+  };
+
+  const handleAddSubStep = async () => {
+    if (!subStepFormData.title || !subStepFormData.description || !currentStepId) {
+      alert('Başlık ve açıklama zorunludur');
+      return;
+    }
+
+    try {
+      const subStepData = {
+        title: subStepFormData.title,
+        description: subStepFormData.description,
+        estimatedMinutes: subStepFormData.estimatedMinutes ? parseInt(subStepFormData.estimatedMinutes) : undefined,
+      };
+
+      if (editingSubStep) {
+        await api.updateSubStep(params.id as string, editingSubStep.stepId, editingSubStep.subStep.id, subStepData);
+      } else {
+        await api.addSubStep(params.id as string, currentStepId, subStepData);
+      }
+
+      await loadSteps();
+      setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
+      setShowSubStepForm(false);
+      setEditingSubStep(null);
+      setCurrentStepId(null);
+    } catch (error) {
+      console.error('Failed to save sub-step:', error);
+      alert('Alt adım kaydedilemedi');
+    }
+  };
+
+  const handleEditSubStep = (stepId: string, subStep: SubStep) => {
+    setEditingSubStep({ stepId, subStep });
+    setCurrentStepId(stepId);
+    setSubStepFormData({
+      title: subStep.title,
+      description: subStep.description,
+      estimatedMinutes: subStep.estimatedMinutes?.toString() || '',
+    });
+    setShowSubStepForm(true);
+  };
+
+  const handleDeleteSubStep = async (stepId: string, subStepId: string) => {
+    if (!confirm('Bu alt adımı silmek istediğinizden emin misiniz?')) return;
+
+    try {
+      await api.deleteSubStep(params.id as string, stepId, subStepId);
+      await loadSteps();
+    } catch (error) {
+      console.error('Failed to delete sub-step:', error);
+      alert('Alt adım silinemedi');
     }
   };
 
@@ -701,6 +782,63 @@ export default function ProcessDetailPage() {
               </div>
             )}
 
+            {/* Sub-Step Form Modal */}
+            {showSubStepForm && (
+              <div className="card bg-green-50 border-2 border-green-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {editingSubStep ? 'Alt Adımı Düzenle' : 'Yeni Alt Adım Ekle'}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="label">Başlık *</label>
+                    <input
+                      type="text"
+                      value={subStepFormData.title}
+                      onChange={(e) => setSubStepFormData({ ...subStepFormData, title: e.target.value })}
+                      className="input"
+                      placeholder="ör. Veriyi Doğrula"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Açıklama *</label>
+                    <textarea
+                      value={subStepFormData.description}
+                      onChange={(e) => setSubStepFormData({ ...subStepFormData, description: e.target.value })}
+                      className="input min-h-[80px]"
+                      placeholder="Bu alt adımda ne yapılacağını açıklayın..."
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Tahmini Süre (dakika)</label>
+                    <input
+                      type="number"
+                      value={subStepFormData.estimatedMinutes}
+                      onChange={(e) => setSubStepFormData({ ...subStepFormData, estimatedMinutes: e.target.value })}
+                      className="input"
+                      placeholder="5"
+                      min="0"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={handleAddSubStep} className="btn-primary">
+                      {editingSubStep ? 'Güncelle' : 'Ekle'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSubStepForm(false);
+                        setEditingSubStep(null);
+                        setCurrentStepId(null);
+                        setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                      }}
+                      className="btn-secondary"
+                    >
+                      İptal
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {stepsLoading ? (
               <div className="card text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -762,6 +900,85 @@ export default function ProcessDetailPage() {
                           >
                             <Trash2 className="h-5 w-5" />
                           </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sub-Steps Section */}
+                    <div className="mt-4 ml-14 border-l-2 border-gray-200 pl-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <button
+                          onClick={() => toggleStepExpansion(step.id)}
+                          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary-600"
+                        >
+                          {expandedSteps.has(step.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                          <span>
+                            Alt Adımlar {step.subSteps && step.subSteps.length > 0 && `(${step.subSteps.length})`}
+                          </span>
+                        </button>
+                        {canEdit && expandedSteps.has(step.id) && (
+                          <button
+                            onClick={() => {
+                              setCurrentStepId(step.id);
+                              setEditingSubStep(null);
+                              setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                              setShowSubStepForm(true);
+                            }}
+                            className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded flex items-center gap-1"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Alt Adım Ekle
+                          </button>
+                        )}
+                      </div>
+
+                      {expandedSteps.has(step.id) && (
+                        <div className="space-y-2 mt-3">
+                          {step.subSteps && step.subSteps.length > 0 ? (
+                            step.subSteps.map((subStep, subIndex) => (
+                              <div key={subStep.id} className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition">
+                                <div className="flex items-start gap-3">
+                                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                                    <span className="text-green-700 text-xs font-medium">{step.order}.{subStep.order}</span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-gray-900 text-sm">{subStep.title}</h4>
+                                    <p className="text-gray-600 text-sm mt-1">{subStep.description}</p>
+                                    {subStep.estimatedMinutes && (
+                                      <div className="flex items-center text-xs text-gray-500 mt-1">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        ~{subStep.estimatedMinutes} dakika
+                                      </div>
+                                    )}
+                                  </div>
+                                  {canEdit && (
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => handleEditSubStep(step.id, subStep)}
+                                        className="text-gray-400 hover:text-primary-600"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSubStep(step.id, subStep.id)}
+                                        className="text-gray-400 hover:text-red-600"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500 italic py-2">
+                              Henüz alt adım eklenmemiş
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
