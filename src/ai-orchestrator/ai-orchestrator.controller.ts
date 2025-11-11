@@ -37,4 +37,46 @@ export class AiOrchestratorController {
   generateSOP(@Param('id') processId: string, @CurrentUser('userId') userId: string) {
     return this.aiOrchestratorService.generateSOP(processId, userId);
   }
+
+  @Post(':id/analyze')
+  @ApiOperation({ summary: 'Analyze process steps with AI to find issues and improvements' })
+  @ApiResponse({ status: 200, description: 'Analysis completed successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid process or no steps defined' })
+  analyzeProcess(@Param('id') processId: string, @CurrentUser('userId') userId: string) {
+    return this.aiOrchestratorService.analyzeProcess(processId, userId);
+  }
+
+  // ==================== CONVERSATION ENDPOINTS ====================
+
+  @Post(':id/conversation/message')
+  @ApiOperation({ summary: 'Send a message in process conversation with AI' })
+  @ApiResponse({ status: 200, description: 'Message sent and AI response received' })
+  @ApiResponse({ status: 400, description: 'Invalid process or access denied' })
+  sendMessage(
+    @Param('id') processId: string,
+    @Body() body: { message: string },
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.aiOrchestratorService.sendMessage(processId, userId, body.message);
+  }
+
+  @Get(':id/conversation/history')
+  @ApiOperation({ summary: 'Get conversation history for a process' })
+  @ApiResponse({ status: 200, description: 'Conversation history returned' })
+  getConversationHistory(
+    @Param('id') processId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.aiOrchestratorService.getConversationHistory(processId, userId);
+  }
+
+  @Delete(':id/conversation')
+  @ApiOperation({ summary: 'Clear conversation history for a process' })
+  @ApiResponse({ status: 200, description: 'Conversation cleared successfully' })
+  clearConversation(
+    @Param('id') processId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.aiOrchestratorService.clearConversation(processId, userId);
+  }
 }

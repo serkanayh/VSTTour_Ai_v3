@@ -438,13 +438,14 @@ export class ProcessService {
     const sopData: any = version.sopJson || { steps: [] };
     const steps = sopData.steps || [];
 
-    // Create new step
+    // Create new step with sub-steps support
     const newStep = {
       id: `step-${Date.now()}`,
       order: steps.length + 1,
       title: stepData.title,
       description: stepData.description,
       estimatedMinutes: stepData.estimatedMinutes || null,
+      subSteps: [], // Sub-steps array
     };
 
     steps.push(newStep);
@@ -663,5 +664,244 @@ export class ProcessService {
     });
 
     return { steps: reorderedSteps };
+  }
+
+  // ==================== SUB-STEP MANAGEMENT ====================
+
+  async addSubStep(
+    processId: string,
+    stepId: string,
+    subStepData: { title: string; description: string; estimatedMinutes?: number },
+    userId: string,
+    userRole: string,
+  ) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    if (process.createdById !== userId && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to modify this process');
+    }
+
+    const version = process.versions[0];
+    if (!version) {
+      throw new NotFoundException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    const steps = sopData.steps || [];
+
+    const stepIndex = steps.findIndex((s: any) => s.id === stepId);
+    if (stepIndex === -1) {
+      throw new NotFoundException('Step not found');
+    }
+
+    const step = steps[stepIndex];
+    if (!step.subSteps) {
+      step.subSteps = [];
+    }
+
+    // Create new sub-step
+    const newSubStep = {
+      id: `substep-${Date.now()}`,
+      order: step.subSteps.length + 1,
+      title: subStepData.title,
+      description: subStepData.description,
+      estimatedMinutes: subStepData.estimatedMinutes || null,
+    };
+
+    step.subSteps.push(newSubStep);
+
+    // Update version
+    await this.prisma.processVersion.update({
+      where: { id: version.id },
+      data: {
+        sopJson: {
+          ...sopData,
+          steps,
+        },
+      },
+    });
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'CREATE',
+        entity: 'ProcessSubStep',
+        entityId: newSubStep.id,
+      },
+    });
+
+    return newSubStep;
+  }
+
+  async updateSubStep(
+    processId: string,
+    stepId: string,
+    subStepId: string,
+    subStepData: { title?: string; description?: string; estimatedMinutes?: number },
+    userId: string,
+    userRole: string,
+  ) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    if (process.createdById !== userId && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to modify this process');
+    }
+
+    const version = process.versions[0];
+    if (!version) {
+      throw new NotFoundException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    const steps = sopData.steps || [];
+
+    const stepIndex = steps.findIndex((s: any) => s.id === stepId);
+    if (stepIndex === -1) {
+      throw new NotFoundException('Step not found');
+    }
+
+    const step = steps[stepIndex];
+    const subSteps = step.subSteps || [];
+
+    const subStepIndex = subSteps.findIndex((ss: any) => ss.id === subStepId);
+    if (subStepIndex === -1) {
+      throw new NotFoundException('Sub-step not found');
+    }
+
+    // Update sub-step
+    subSteps[subStepIndex] = {
+      ...subSteps[subStepIndex],
+      ...subStepData,
+    };
+
+    // Update version
+    await this.prisma.processVersion.update({
+      where: { id: version.id },
+      data: {
+        sopJson: {
+          ...sopData,
+          steps,
+        },
+      },
+    });
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'UPDATE',
+        entity: 'ProcessSubStep',
+        entityId: subStepId,
+        changes: subStepData,
+      },
+    });
+
+    return subSteps[subStepIndex];
+  }
+
+  async deleteSubStep(
+    processId: string,
+    stepId: string,
+    subStepId: string,
+    userId: string,
+    userRole: string,
+  ) {
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new NotFoundException('Process not found');
+    }
+
+    if (process.createdById !== userId && userRole !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to modify this process');
+    }
+
+    const version = process.versions[0];
+    if (!version) {
+      throw new NotFoundException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    const steps = sopData.steps || [];
+
+    const stepIndex = steps.findIndex((s: any) => s.id === stepId);
+    if (stepIndex === -1) {
+      throw new NotFoundException('Step not found');
+    }
+
+    const step = steps[stepIndex];
+    let subSteps = step.subSteps || [];
+
+    const subStepIndex = subSteps.findIndex((ss: any) => ss.id === subStepId);
+    if (subStepIndex === -1) {
+      throw new NotFoundException('Sub-step not found');
+    }
+
+    // Remove sub-step
+    subSteps = subSteps.filter((ss: any) => ss.id !== subStepId);
+
+    // Reorder remaining sub-steps
+    subSteps = subSteps.map((ss: any, index: number) => ({
+      ...ss,
+      order: index + 1,
+    }));
+
+    step.subSteps = subSteps;
+
+    // Update version
+    await this.prisma.processVersion.update({
+      where: { id: version.id },
+      data: {
+        sopJson: {
+          ...sopData,
+          steps,
+        },
+      },
+    });
+
+    // Create audit log
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'DELETE',
+        entity: 'ProcessSubStep',
+        entityId: subStepId,
+      },
+    });
+
+    return { message: 'Sub-step deleted successfully' };
   }
 }

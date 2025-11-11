@@ -176,4 +176,46 @@ export class ProcessController {
   ) {
     return this.processService.reorderProcessSteps(processId, body.stepIds, userId, role);
   }
+
+  // ==================== SUB-STEP ENDPOINTS ====================
+
+  @Post(':id/steps/:stepId/substeps')
+  @ApiOperation({ summary: 'Add a sub-step to a step' })
+  @ApiResponse({ status: 201, description: 'Sub-step added successfully' })
+  addSubStep(
+    @Param('id') processId: string,
+    @Param('stepId') stepId: string,
+    @Body() subStepData: { title: string; description: string; estimatedMinutes?: number },
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.addSubStep(processId, stepId, subStepData, userId, role);
+  }
+
+  @Patch(':id/steps/:stepId/substeps/:subStepId')
+  @ApiOperation({ summary: 'Update a sub-step' })
+  @ApiResponse({ status: 200, description: 'Sub-step updated successfully' })
+  updateSubStep(
+    @Param('id') processId: string,
+    @Param('stepId') stepId: string,
+    @Param('subStepId') subStepId: string,
+    @Body() subStepData: { title?: string; description?: string; estimatedMinutes?: number },
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.updateSubStep(processId, stepId, subStepId, subStepData, userId, role);
+  }
+
+  @Delete(':id/steps/:stepId/substeps/:subStepId')
+  @ApiOperation({ summary: 'Delete a sub-step' })
+  @ApiResponse({ status: 200, description: 'Sub-step deleted successfully' })
+  deleteSubStep(
+    @Param('id') processId: string,
+    @Param('stepId') stepId: string,
+    @Param('subStepId') subStepId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.processService.deleteSubStep(processId, stepId, subStepId, userId, role);
+  }
 }
