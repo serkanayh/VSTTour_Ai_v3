@@ -54,7 +54,7 @@ export class IntegrationService {
     // Store export record
     const exportRecord = await this.prisma.processExport.create({
       data: {
-        processId: process.id,
+        processId: processRecord.id,
         format: ExportFormat.N8N_WORKFLOW,
         exportData: n8nWorkflow,
       },
@@ -66,7 +66,7 @@ export class IntegrationService {
         userId,
         action: 'EXPORT',
         entity: 'Process',
-        entityId: process.id,
+        entityId: processRecord.id,
         changes: { format: 'N8N_WORKFLOW', exportId: exportRecord.id },
       },
     });
