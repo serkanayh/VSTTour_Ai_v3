@@ -21,8 +21,8 @@ export class RegisterDto {
   @IsOptional()
   role?: UserRole;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ example: 'IT Department', required: false })
   @IsString()
   @IsOptional()
-  departmentId?: string;
+  department?: string;
 }

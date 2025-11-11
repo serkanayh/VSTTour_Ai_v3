@@ -1,43 +1,48 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsNumber, Min, Max, IsEnum } from 'class-validator';
+import { ProcessStatus } from '@prisma/client';
 
 export class CreateProcessDto {
   @ApiProperty({ example: 'Expense Report Upload' })
   @IsString()
-  processName: string;
+  name: string;
 
   @ApiProperty({ example: 'Process for uploading expense reports to ERP system', required: false })
   @IsString()
   @IsOptional()
   description?: string;
 
+  @ApiProperty({ example: 'Finance', required: false })
+  @IsString()
+  @IsOptional()
+  department?: string;
+
+  @ApiProperty({ example: 60, description: 'Estimated time in minutes', required: false })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  estimatedTimeMinutes?: number;
+
   @ApiProperty({ example: 12, description: 'Tasks per day', required: false })
   @IsNumber()
   @IsOptional()
   @Min(0)
-  frequency?: number;
+  tasksPerDay?: number;
 
   @ApiProperty({ example: 7, description: 'Minutes per task', required: false })
   @IsNumber()
   @IsOptional()
   @Min(0)
-  duration?: number;
+  minutesPerTask?: number;
 
-  @ApiProperty({ example: 120, description: 'Cost per hour (TRY)', required: false })
+  @ApiProperty({ example: 120, description: 'Cost per hour', required: false })
   @IsNumber()
   @IsOptional()
   @Min(0)
   costPerHour?: number;
 
-  @ApiProperty({ example: 9, description: 'Automation score (0-10)', required: false })
-  @IsNumber()
+  @ApiProperty({ enum: ProcessStatus, default: ProcessStatus.DRAFT, required: false })
+  @IsEnum(ProcessStatus)
   @IsOptional()
-  @Min(0)
-  @Max(10)
-  automationScore?: number;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  departmentId?: string;
+  status?: ProcessStatus;
 }

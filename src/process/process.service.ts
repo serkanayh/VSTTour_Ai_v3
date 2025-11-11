@@ -9,12 +9,19 @@ export class ProcessService {
   constructor(private prisma: PrismaService) {}
 
   async create(createProcessDto: CreateProcessDto, userId: string) {
+    // Map frontend fields to database schema
+    const processData: any = {
+      processName: createProcessDto.name,
+      description: createProcessDto.description,
+      frequency: createProcessDto.tasksPerDay,
+      duration: createProcessDto.minutesPerTask,
+      costPerHour: createProcessDto.costPerHour,
+      createdById: userId,
+      status: createProcessDto.status || ProcessStatus.DRAFT,
+    };
+
     const process = await this.prisma.process.create({
-      data: {
-        ...createProcessDto,
-        createdById: userId,
-        status: ProcessStatus.DRAFT,
-      },
+      data: processData,
       include: {
         createdBy: {
           select: {
@@ -23,7 +30,6 @@ export class ProcessService {
             email: true,
           },
         },
-        department: true,
       },
     });
 
@@ -37,7 +43,23 @@ export class ProcessService {
       },
     });
 
-    return process;
+    // Map database fields back to frontend format
+    return {
+      id: process.id,
+      name: process.processName,
+      description: process.description,
+      status: process.status,
+      currentVersion: process.currentVersion,
+      department: createProcessDto.department,
+      estimatedTimeMinutes: createProcessDto.estimatedTimeMinutes,
+      tasksPerDay: process.frequency,
+      minutesPerTask: process.duration,
+      costPerHour: process.costPerHour,
+      createdById: process.createdById,
+      createdBy: process.createdBy,
+      createdAt: process.createdAt,
+      updatedAt: process.updatedAt,
+    };
   }
 
   async findAll(userId: string, userRole: string) {
@@ -50,7 +72,7 @@ export class ProcessService {
       whereClause.OR = [{ createdById: userId }, { status: ProcessStatus.APPROVED }];
     }
 
-    return this.prisma.process.findMany({
+    const processes = await this.prisma.process.findMany({
       where: whereClause,
       include: {
         createdBy: {
@@ -60,12 +82,29 @@ export class ProcessService {
             email: true,
           },
         },
-        department: true,
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
+
+    // Map database fields to frontend format
+    return processes.map(process => ({
+      id: process.id,
+      name: process.processName,
+      description: process.description,
+      status: process.status,
+      currentVersion: process.currentVersion,
+      department: null,
+      estimatedTimeMinutes: process.duration,
+      tasksPerDay: process.frequency,
+      minutesPerTask: process.duration,
+      costPerHour: process.costPerHour,
+      createdById: process.createdById,
+      createdBy: process.createdBy,
+      createdAt: process.createdAt,
+      updatedAt: process.updatedAt,
+    }));
   }
 
   async findOne(id: string, userId: string, userRole: string) {
@@ -79,7 +118,6 @@ export class ProcessService {
             email: true,
           },
         },
-        department: true,
         versions: {
           orderBy: {
             version: 'desc',
@@ -103,7 +141,24 @@ export class ProcessService {
       throw new ForbiddenException('You do not have permission to view this process');
     }
 
-    return process;
+    // Map database fields to frontend format
+    return {
+      id: process.id,
+      name: process.processName,
+      description: process.description,
+      status: process.status,
+      currentVersion: process.currentVersion,
+      department: null,
+      estimatedTimeMinutes: process.duration,
+      tasksPerDay: process.frequency,
+      minutesPerTask: process.duration,
+      costPerHour: process.costPerHour,
+      createdById: process.createdById,
+      createdBy: process.createdBy,
+      createdAt: process.createdAt,
+      updatedAt: process.updatedAt,
+      versions: process.versions,
+    };
   }
 
   async update(id: string, updateProcessDto: UpdateProcessDto, userId: string, userRole: string) {
