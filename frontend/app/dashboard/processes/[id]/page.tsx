@@ -4,6 +4,23 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowLeft,
   Edit,
   Trash2,
@@ -27,6 +44,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  GripVertical,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore, ProcessStatus, UserRole } from '@/lib/store';
@@ -77,6 +95,165 @@ interface ProcessStep {
 
 type TabType = 'overview' | 'steps' | 'ai-chat' | 'history';
 
+interface SortableStepItemProps {
+  step: ProcessStep;
+  index: number;
+  canEdit: boolean;
+  expandedSteps: Set<string>;
+  onEdit: (step: ProcessStep) => void;
+  onDelete: (stepId: string) => void;
+  onToggleExpand: (stepId: string) => void;
+  onAddSubStep: (stepId: string) => void;
+  onEditSubStep: (stepId: string, subStep: SubStep) => void;
+  onDeleteSubStep: (stepId: string, subStepId: string) => void;
+}
+
+function SortableStepItem({
+  step,
+  index,
+  canEdit,
+  expandedSteps,
+  onEdit,
+  onDelete,
+  onToggleExpand,
+  onAddSubStep,
+  onEditSubStep,
+  onDeleteSubStep,
+}: SortableStepItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: step.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="card hover:shadow-lg transition-shadow">
+      <div className="flex items-start gap-4">
+        {canEdit && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 mt-2"
+          >
+            <GripVertical className="h-5 w-5" />
+          </button>
+        )}
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+          <span className="text-primary-600 font-bold">{step.order}</span>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {step.title}
+          </h3>
+          <p className="text-gray-600 mb-3">{step.description}</p>
+          {step.estimatedMinutes && (
+            <div className="flex items-center text-sm text-gray-500">
+              <Clock className="h-4 w-4 mr-1" />
+              ~{step.estimatedMinutes} dakika
+            </div>
+          )}
+        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEdit(step)}
+              className="text-gray-400 hover:text-primary-600"
+            >
+              <Edit className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => onDelete(step.id)}
+              className="text-gray-400 hover:text-red-600"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Sub-Steps Section */}
+      <div className="mt-4 ml-14 border-l-2 border-gray-200 pl-4">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => onToggleExpand(step.id)}
+            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary-600"
+          >
+            {expandedSteps.has(step.id) ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            <span>
+              Alt Adımlar {step.subSteps && step.subSteps.length > 0 && `(${step.subSteps.length})`}
+            </span>
+          </button>
+          {canEdit && expandedSteps.has(step.id) && (
+            <button
+              onClick={() => onAddSubStep(step.id)}
+              className="text-sm text-primary-600 hover:text-primary-800 flex items-center gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              Ekle
+            </button>
+          )}
+        </div>
+
+        {expandedSteps.has(step.id) && step.subSteps && step.subSteps.length > 0 && (
+          <div className="space-y-2 mt-2">
+            {step.subSteps.map((subStep, subIndex) => (
+              <div
+                key={subStep.id}
+                className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded">
+                    {step.order}.{subStep.order}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-gray-900">{subStep.title}</h4>
+                    <p className="text-xs text-gray-600 mt-1">{subStep.description}</p>
+                    {subStep.estimatedMinutes && (
+                      <div className="flex items-center text-xs text-gray-500 mt-1">
+                        <Clock className="h-3 w-3 mr-1" />
+                        ~{subStep.estimatedMinutes} dakika
+                      </div>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => onEditSubStep(step.id, subStep)}
+                        className="text-gray-400 hover:text-primary-600"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteSubStep(step.id, subStep.id)}
+                        className="text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProcessDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -118,6 +295,14 @@ export default function ProcessDetailPage() {
   const [sopResult, setSopResult] = useState<any>(null);
   const [sopLoading, setSopLoading] = useState(false);
   const [showSopModal, setShowSopModal] = useState(false);
+
+  // Drag & Drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     if (params.id) {
@@ -351,6 +536,30 @@ export default function ProcessDetailPage() {
       newExpanded.add(stepId);
     }
     setExpandedSteps(newExpanded);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = steps.findIndex((step) => step.id === active.id);
+    const newIndex = steps.findIndex((step) => step.id === over.id);
+
+    const newSteps = arrayMove(steps, oldIndex, newIndex);
+    setSteps(newSteps);
+
+    // Update on backend
+    try {
+      await api.reorderProcessSteps(params.id as string, newSteps.map(s => s.id));
+    } catch (error) {
+      console.error('Failed to reorder steps:', error);
+      // Revert on error
+      setSteps(steps);
+      alert('Adımları yeniden sıralama başarısız oldu.');
+    }
   };
 
   const handleAddSubStep = async () => {
@@ -905,124 +1114,39 @@ export default function ProcessDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="space-y-3">
-                {steps.map((step, index) => (
-                  <div key={step.id} className="card hover:shadow-lg transition-shadow">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-                        <span className="text-primary-600 font-bold">{step.order}</span>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                          {step.title}
-                        </h3>
-                        <p className="text-gray-600 mb-3">{step.description}</p>
-                        {step.estimatedMinutes && (
-                          <div className="flex items-center text-sm text-gray-500">
-                            <Clock className="h-4 w-4 mr-1" />
-                            ~{step.estimatedMinutes} dakika
-                          </div>
-                        )}
-                      </div>
-                      {canEdit && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditStep(step)}
-                            className="text-gray-400 hover:text-primary-600"
-                          >
-                            <Edit className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteStep(step.id)}
-                            className="text-gray-400 hover:text-red-600"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sub-Steps Section */}
-                    <div className="mt-4 ml-14 border-l-2 border-gray-200 pl-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <button
-                          onClick={() => toggleStepExpansion(step.id)}
-                          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary-600"
-                        >
-                          {expandedSteps.has(step.id) ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                          <span>
-                            Alt Adımlar {step.subSteps && step.subSteps.length > 0 && `(${step.subSteps.length})`}
-                          </span>
-                        </button>
-                        {canEdit && expandedSteps.has(step.id) && (
-                          <button
-                            onClick={() => {
-                              setCurrentStepId(step.id);
-                              setEditingSubStep(null);
-                              setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
-                              setShowSubStepForm(true);
-                            }}
-                            className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded flex items-center gap-1"
-                          >
-                            <Plus className="h-3 w-3" />
-                            Alt Adım Ekle
-                          </button>
-                        )}
-                      </div>
-
-                      {expandedSteps.has(step.id) && (
-                        <div className="space-y-2 mt-3">
-                          {step.subSteps && step.subSteps.length > 0 ? (
-                            step.subSteps.map((subStep, subIndex) => (
-                              <div key={subStep.id} className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition">
-                                <div className="flex items-start gap-3">
-                                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                                    <span className="text-green-700 text-xs font-medium">{step.order}.{subStep.order}</span>
-                                  </div>
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-gray-900 text-sm">{subStep.title}</h4>
-                                    <p className="text-gray-600 text-sm mt-1">{subStep.description}</p>
-                                    {subStep.estimatedMinutes && (
-                                      <div className="flex items-center text-xs text-gray-500 mt-1">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        ~{subStep.estimatedMinutes} dakika
-                                      </div>
-                                    )}
-                                  </div>
-                                  {canEdit && (
-                                    <div className="flex gap-1">
-                                      <button
-                                        onClick={() => handleEditSubStep(step.id, subStep)}
-                                        className="text-gray-400 hover:text-primary-600"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteSubStep(step.id, subStep.id)}
-                                        className="text-gray-400 hover:text-red-600"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-sm text-gray-500 italic py-2">
-                              Henüz alt adım eklenmemiş
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={steps.map(s => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {steps.map((step, index) => (
+                      <SortableStepItem
+                        key={step.id}
+                        step={step}
+                        index={index}
+                        canEdit={canEdit}
+                        expandedSteps={expandedSteps}
+                        onEdit={handleEditStep}
+                        onDelete={handleDeleteStep}
+                        onToggleExpand={toggleStepExpansion}
+                        onAddSubStep={(stepId) => {
+                          setCurrentStepId(stepId);
+                          setEditingSubStep(null);
+                          setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
+                          setShowSubStepForm(true);
+                        }}
+                        onEditSubStep={handleEditSubStep}
+                        onDeleteSubStep={handleDeleteSubStep}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
         )}
