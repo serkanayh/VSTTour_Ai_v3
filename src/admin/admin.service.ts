@@ -20,11 +20,13 @@ export class AdminService {
     // Encrypt API key
     const encryptedApiKey = this.encryptionService.encrypt(createDto.apiKey);
 
+    // Remove apiKey from DTO before saving
+    const { apiKey, ...dataWithoutApiKey } = createDto;
+
     const config = await this.prisma.aiConfiguration.create({
       data: {
-        ...createDto,
+        ...dataWithoutApiKey,
         apiKeyEncrypted: encryptedApiKey,
-        apiKey: undefined, // Remove plain text key
       },
     });
 

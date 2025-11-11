@@ -11,24 +11,29 @@ export class IntegrationService {
   ) {}
 
   async exportToN8n(processId: string, userId: string) {
-    const process = await this.prisma.process.findUnique({
+    const processRecord = await this.prisma.process.findUnique({
       where: { id: processId },
       include: {
         createdBy: true,
-        versions: {
-          where: {
-            version: {
-              equals: process.currentVersion,
-            },
-          },
-          take: 1,
-        },
       },
     });
 
-    if (!process) {
+    if (!processRecord) {
       throw new NotFoundException('Process not found');
     }
+
+    // Fetch the current version separately
+    const currentVersion = await this.prisma.processVersion.findFirst({
+      where: {
+        processId: processId,
+        version: processRecord.currentVersion,
+      },
+    });
+
+    const process = {
+      ...processRecord,
+      versions: currentVersion ? [currentVersion] : [],
+    };
 
     // Only approved processes can be exported
     if (process.status !== ProcessStatus.APPROVED) {
@@ -82,7 +87,7 @@ export class IntegrationService {
   }
 
   async exportToJSON(processId: string, userId: string) {
-    const process = await this.prisma.process.findUnique({
+    const processRecord = await this.prisma.process.findUnique({
       where: { id: processId },
       include: {
         createdBy: {
@@ -93,20 +98,25 @@ export class IntegrationService {
           },
         },
         department: true,
-        versions: {
-          where: {
-            version: {
-              equals: process.currentVersion,
-            },
-          },
-          take: 1,
-        },
       },
     });
 
-    if (!process) {
+    if (!processRecord) {
       throw new NotFoundException('Process not found');
     }
+
+    // Fetch the current version separately
+    const currentVersion = await this.prisma.processVersion.findFirst({
+      where: {
+        processId: processId,
+        version: processRecord.currentVersion,
+      },
+    });
+
+    const process = {
+      ...processRecord,
+      versions: currentVersion ? [currentVersion] : [],
+    };
 
     if (process.status !== ProcessStatus.APPROVED) {
       throw new ForbiddenException('Only approved processes can be exported');

@@ -141,7 +141,7 @@ export class ProcessService {
         action: 'UPDATE',
         entity: 'Process',
         entityId: id,
-        changes: updateProcessDto,
+        changes: JSON.parse(JSON.stringify(updateProcessDto)),
       },
     });
 
