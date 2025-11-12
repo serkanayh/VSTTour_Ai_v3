@@ -296,6 +296,9 @@ export default function ProcessDetailPage() {
   const [sopLoading, setSopLoading] = useState(false);
   const [showSopModal, setShowSopModal] = useState(false);
 
+  // Auto-apply suggestions
+  const [applyingSuggestion, setApplyingSuggestion] = useState<number | null>(null);
+
   // Drag & Drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -512,6 +515,65 @@ export default function ProcessDetailPage() {
       alert(error.response?.data?.message || 'SOP oluşturma başarısız oldu.');
     } finally {
       setSopLoading(false);
+    }
+  };
+
+  const handleApplySuggestion = async (stepNumber: number, suggestion: string) => {
+    setApplyingSuggestion(stepNumber);
+
+    try {
+      // Get structured update from AI
+      const result = await api.applySuggestion(params.id as string, stepNumber, suggestion);
+      const { suggestedUpdate, currentStep } = result;
+
+      // Find the step to update
+      const step = steps.find(s => s.order === stepNumber);
+      if (!step) {
+        alert(`Adım ${stepNumber} bulunamadı.`);
+        return;
+      }
+
+      // Apply the AI suggestion based on action type
+      const { action, changes, explanation } = suggestedUpdate;
+
+      // Prepare update data
+      const updateData: any = {};
+
+      if (changes.title) {
+        updateData.title = changes.title;
+      }
+      if (changes.description) {
+        updateData.description = changes.description;
+      }
+      if (changes.estimatedMinutes) {
+        updateData.estimatedMinutes = changes.estimatedMinutes;
+      }
+
+      // Update the step
+      if (Object.keys(updateData).length > 0) {
+        await api.updateProcessStep(params.id as string, step.id, updateData);
+      }
+
+      // Add sub-steps if suggested
+      if (changes.newSubSteps && changes.newSubSteps.length > 0) {
+        for (const subStep of changes.newSubSteps) {
+          await api.addSubStep(params.id as string, step.id, {
+            title: subStep.title,
+            description: subStep.description,
+            estimatedMinutes: subStep.estimatedMinutes,
+          });
+        }
+      }
+
+      // Reload steps to see changes
+      await loadSteps();
+
+      alert(`✅ Öneri uygulandı!\n\n${explanation}`);
+    } catch (error: any) {
+      console.error('Apply suggestion error:', error);
+      alert(error.response?.data?.message || 'Öneri uygulanamadı.');
+    } finally {
+      setApplyingSuggestion(null);
     }
   };
 
@@ -943,8 +1005,30 @@ export default function ProcessDetailPage() {
                         <ul className="space-y-2">
                           {analysisResult.suggestions.map((suggestion: any, idx: number) => (
                             <li key={idx} className="bg-white rounded-lg p-3 border border-green-200">
-                              <span className="font-medium text-green-700">Adım {suggestion.stepNumber}:</span>{' '}
-                              <span className="text-gray-700">{suggestion.suggestion}</span>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <span className="font-medium text-green-700">Adım {suggestion.stepNumber}:</span>{' '}
+                                  <span className="text-gray-700">{suggestion.suggestion}</span>
+                                </div>
+                                <button
+                                  onClick={() => handleApplySuggestion(suggestion.stepNumber, suggestion.suggestion)}
+                                  disabled={applyingSuggestion === suggestion.stepNumber}
+                                  className="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-1.5 px-3 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="AI'nın bu öneriyi otomatik uygula"
+                                >
+                                  {applyingSuggestion === suggestion.stepNumber ? (
+                                    <>
+                                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                      Uygulanıyor...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="h-3.5 w-3.5" />
+                                      Otomatik Uygula
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             </li>
                           ))}
                         </ul>

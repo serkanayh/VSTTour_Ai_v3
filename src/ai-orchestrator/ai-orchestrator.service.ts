@@ -355,6 +355,109 @@ IMPORTANT: Yanıtınızı TÜRKÇE olarak JSON formatında verin:
     }
   }
 
+  async applySuggestion(
+    processId: string,
+    userId: string,
+    stepNumber: number,
+    suggestion: string,
+  ) {
+    // Verify process exists and user has access
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+      include: {
+        versions: {
+          where: { version: 1 },
+          take: 1,
+        },
+      },
+    });
+
+    if (!process) {
+      throw new BadRequestException('Process not found');
+    }
+
+    if (process.createdById !== userId) {
+      throw new BadRequestException('You do not have access to this process');
+    }
+
+    // Get current step data
+    const version = process.versions[0];
+    if (!version) {
+      throw new BadRequestException('Process version not found');
+    }
+
+    const sopData: any = version.sopJson || { steps: [] };
+    const steps = sopData.steps || [];
+    const targetStep = steps.find((s: any) => s.order === stepNumber);
+
+    if (!targetStep) {
+      throw new BadRequestException(`Step ${stepNumber} not found`);
+    }
+
+    // Build prompt for AI to provide structured update
+    const applyPrompt = `
+IMPORTANT: Yanıtınızı TÜRKÇE olarak ve JSON formatında verin.
+
+Aşağıdaki iyileştirme önerisini yapılandırılmış bir güncelleme olarak dönüştürün:
+
+Süreç: ${process.processName}
+Adım Numarası: ${stepNumber}
+Mevcut Adım Başlığı: ${targetStep.title}
+Mevcut Adım Açıklaması: ${targetStep.description || 'Yok'}
+Mevcut Alt Adımlar: ${targetStep.subSteps ? JSON.stringify(targetStep.subSteps) : 'Yok'}
+
+İyileştirme Önerisi: ${suggestion}
+
+Bu öneriyi uygulamak için hangi değişiklikler yapılmalı? Lütfen aşağıdaki JSON formatında yanıt verin:
+
+\`\`\`json
+{
+  "action": "update_step" | "add_substeps" | "update_description" | "update_title",
+  "changes": {
+    "title": "yeni başlık (sadece title değişiyorsa)",
+    "description": "yeni veya güncellenmiş açıklama (TÜRKÇE)",
+    "estimatedMinutes": 15,
+    "newSubSteps": [
+      {
+        "title": "Alt adım başlığı (TÜRKÇE)",
+        "description": "Alt adım açıklaması (TÜRKÇE)",
+        "estimatedMinutes": 5
+      }
+    ]
+  },
+  "explanation": "Bu değişikliklerin neden yapıldığının açıklaması (TÜRKÇE)"
+}
+\`\`\`
+
+NOT: Sadece öneriyle ilgili alanları değiştirin. Örneğin sadece açıklama güncelleniyorsa, sadece "description" alanını ekleyin.
+`;
+
+    try {
+      const systemPrompt = await this.getSystemPrompt();
+      const aiResponse = await this.openAiService.chat([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: applyPrompt },
+      ]);
+
+      // Try to parse JSON response
+      const structuredUpdate = this.extractStructuredData(aiResponse);
+
+      if (!structuredUpdate) {
+        throw new BadRequestException('AI could not generate structured update');
+      }
+
+      return {
+        stepNumber,
+        currentStep: targetStep,
+        suggestedUpdate: structuredUpdate,
+        originalSuggestion: suggestion,
+      };
+    } catch (error) {
+      console.error('Apply Suggestion Error:', error);
+      throw new BadRequestException('Failed to generate structured update');
+    }
+  }
+
   // ==================== CONVERSATION MANAGEMENT ====================
 
   async getOrCreateConversation(processId: string, userId: string) {

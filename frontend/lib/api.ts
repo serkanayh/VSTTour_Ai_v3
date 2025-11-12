@@ -209,6 +209,14 @@ class ApiClient {
     return response.data;
   }
 
+  async applySuggestion(processId: string, stepNumber: number, suggestion: string) {
+    const response = await this.client.post(`/process/${processId}/apply-suggestion`, {
+      stepNumber,
+      suggestion,
+    });
+    return response.data;
+  }
+
   async generateSOP(processId: string) {
     const response = await this.client.post(`/process/${processId}/generate-sop`);
     return response.data;

@@ -46,6 +46,18 @@ export class AiOrchestratorController {
     return this.aiOrchestratorService.analyzeProcess(processId, userId);
   }
 
+  @Post(':id/apply-suggestion')
+  @ApiOperation({ summary: 'Get structured update from AI for applying a suggestion' })
+  @ApiResponse({ status: 200, description: 'Structured update returned' })
+  @ApiResponse({ status: 400, description: 'Invalid request' })
+  applySuggestion(
+    @Param('id') processId: string,
+    @Body() body: { stepNumber: number; suggestion: string },
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.aiOrchestratorService.applySuggestion(processId, userId, body.stepNumber, body.suggestion);
+  }
+
   // ==================== CONVERSATION ENDPOINTS ====================
 
   @Post(':id/conversation/message')
