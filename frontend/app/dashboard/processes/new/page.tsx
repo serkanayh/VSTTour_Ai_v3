@@ -101,7 +101,9 @@ export default function NewProcessPage() {
       const response = await api.startAIProcess({
         processName: formData.name,
         description: formData.description || undefined,
-        departmentId: formData.department || undefined,
+        // Note: departmentId should be a UUID, not a text. For now, we'll omit it.
+        // In the future, this should be a dropdown with actual department IDs
+        departmentId: undefined,
       });
 
       setProcessId(response.processId);

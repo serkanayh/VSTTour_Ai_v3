@@ -23,7 +23,7 @@ export class AiOrchestratorService {
         processName: startFormDto.processName,
         description: startFormDto.description,
         createdById: userId,
-        departmentId: startFormDto.departmentId,
+        departmentId: startFormDto.departmentId || null,
       },
     });
 
