@@ -120,16 +120,16 @@ export class AiOrchestratorService {
 
     return (
       config?.systemPrompt ||
-      `You are an AI assistant helping to document business processes in a structured SOP format.
-Your goal is to ask clarifying questions to understand:
-1. The exact steps of the process
-2. Time taken for each step
-3. Frequency of the task
-4. Any pain points or manual steps
-5. Data privacy concerns (KVKK compliance)
-6. Automation potential
+      `Sen iş süreçlerini yapılandırılmış SOP formatında belgelemeye yardımcı olan bir AI asistanısın.
+Amacın şunları anlamak için açıklayıcı sorular sormaktır:
+1. Sürecin tam adımları
+2. Her adım için harcanan zaman
+3. Görevin sıklığı
+4. Yaşanan sorunlar veya manuel adımlar
+5. Veri gizliliği endişeleri (KVKK uyumu)
+6. Otomasyon potansiyeli
 
-Be conversational but focused. Extract actionable information for process automation.`
+IMPORTANT: Tüm yanıtlarını TÜRKÇE olarak ver. Konuşmacı ol ama odaklı kal. Süreç otomasyonu için uygulanabilir bilgiler çıkar.`
     );
   }
 
@@ -292,34 +292,36 @@ Be conversational but focused. Extract actionable information for process automa
     }).join('\n\n');
 
     const analysisPrompt = `
-Analyze the following business process steps and identify:
-1. Missing or incomplete steps
-2. Ambiguous or unclear descriptions
-3. Steps that lack necessary sub-steps
-4. Potential bottlenecks or inefficiencies
-5. Missing error handling or edge cases
-6. Steps that need more detail
+IMPORTANT: You MUST respond in Turkish language. Tüm yanıtlarınız Türkçe olmalıdır.
 
-Process Name: ${process.processName}
-Process Description: ${process.description || 'N/A'}
+Aşağıdaki iş sürecini analiz edin ve şunları belirleyin:
+1. Eksik veya tamamlanmamış adımlar
+2. Belirsiz veya açık olmayan açıklamalar
+3. Alt adımlara ihtiyaç duyan adımlar
+4. Potansiyel darboğazlar veya verimsizlikler
+5. Eksik hata yönetimi veya uç durumlar
+6. Daha fazla detaya ihtiyaç duyan adımlar
 
-Current Steps:
+Süreç Adı: ${process.processName}
+Süreç Açıklaması: ${process.description || 'Belirtilmemiş'}
+
+Mevcut Adımlar:
 ${stepsDescription}
 
-Please provide:
-1. An overall assessment
-2. A list of specific issues found (with step numbers)
-3. Concrete suggestions for improvement
+Lütfen aşağıdakileri sağlayın:
+1. Genel bir değerlendirme
+2. Bulunan spesifik sorunların listesi (adım numaraları ile)
+3. İyileştirme için somut öneriler
 
-Format your response as JSON:
+IMPORTANT: Yanıtınızı TÜRKÇE olarak JSON formatında verin:
 {
-  "overall": "overall assessment text",
+  "overall": "genel değerlendirme metni (TÜRKÇE)",
   "issues": [
-    {"stepNumber": 1, "issue": "description of issue"},
+    {"stepNumber": 1, "issue": "sorun açıklaması (TÜRKÇE)"},
     ...
   ],
   "suggestions": [
-    {"stepNumber": 1, "suggestion": "specific suggestion"},
+    {"stepNumber": 1, "suggestion": "öneri açıklaması (TÜRKÇE)"},
     ...
   ]
 }

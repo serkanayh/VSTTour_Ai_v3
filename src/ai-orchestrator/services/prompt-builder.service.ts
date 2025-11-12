@@ -3,15 +3,15 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class PromptBuilderService {
   buildInitialPrompt(formData: any): string {
-    return `Hi! I'm here to help document your business process: "${formData.processName}".
+    return `Merhaba! İş sürecinizi belgelemenize yardımcı olmak için buradayım: "${formData.processName}".
 
-To create an effective automation plan, I'll need to understand:
-- The exact steps you follow
-- How often you perform this task
-- How long each step typically takes
-- Any pain points or repetitive actions
+Etkili bir otomasyon planı oluşturmak için aşağıdakileri anlamam gerekiyor:
+- Takip ettiğiniz tam adımlar
+- Bu görevi ne sıklıkla gerçekleştiriyorsunuz
+- Her adım genellikle ne kadar sürer
+- Yaşadığınız sorunlar veya tekrarlayan işlemler
 
-Let's start: Can you describe the first step of "${formData.processName}" in your own words?`;
+Hadi başlayalım: "${formData.processName}" sürecinin ilk adımını kendi kelimelerinizle açıklayabilir misiniz?`;
   }
 
   buildConversationMessages(
@@ -41,46 +41,48 @@ Let's start: Can you describe the first step of "${formData.processName}" in you
   }
 
   buildSOPGenerationPrompt(process: any, formData: any): string {
-    return `Generate a detailed Standard Operating Procedure (SOP) for the following process:
+    return `IMPORTANT: Tüm yanıtlarınızı TÜRKÇE olarak verin.
 
-Process Name: ${process.processName}
-Description: ${process.description || 'N/A'}
-Frequency: ${process.frequency || 'N/A'} times per day
-Duration: ${process.duration || 'N/A'} minutes per task
-Cost per Hour: ${process.costPerHour || 'N/A'} TRY
+Aşağıdaki süreç için detaylı bir Standart İşletim Prosedürü (SOP) oluşturun:
 
-Form Data:
+Süreç Adı: ${process.processName}
+Açıklama: ${process.description || 'Belirtilmemiş'}
+Sıklık: Günde ${process.frequency || 'Belirtilmemiş'} kez
+Süre: Görev başına ${process.duration || 'Belirtilmemiş'} dakika
+Saat Başı Maliyet: ${process.costPerHour || 'Belirtilmemiş'} TL
+
+Form Verisi:
 ${JSON.stringify(formData, null, 2)}
 
-Please generate a structured SOP in the following JSON format:
+Lütfen yapılandırılmış bir SOP'yi aşağıdaki JSON formatında TÜRKÇE olarak oluşturun:
 
 \`\`\`json
 {
-  "title": "Process Title",
-  "summary": "Brief summary of the process",
+  "title": "Süreç Başlığı (TÜRKÇE)",
+  "summary": "Sürecin kısa özeti (TÜRKÇE)",
   "steps": [
     {
       "order": 1,
-      "action": "Description of the action",
+      "action": "Yapılacak işlemin açıklaması (TÜRKÇE)",
       "estimatedTime": 60,
-      "tools": ["Tool 1", "Tool 2"],
-      "notes": "Any important notes"
+      "tools": ["Araç 1", "Araç 2"],
+      "notes": "Önemli notlar (TÜRKÇE)"
     }
   ],
   "totalEstimatedTime": 300,
   "automationPotential": {
     "score": 8,
-    "reasoning": "Why this can be automated",
+    "reasoning": "Neden otomasyona uygun olduğunun açıklaması (TÜRKÇE)",
     "suggestedTools": ["n8n", "Zapier"]
   },
   "riskAssessment": {
     "hasPersonalData": true,
-    "kvkkCompliance": "Required steps for KVKK compliance",
+    "kvkkCompliance": "KVKK uyumu için gerekli adımlar (TÜRKÇE)",
     "criticalSteps": [1, 3]
   }
 }
 \`\`\`
 
-Make sure the output is valid JSON and includes all necessary details for automation planning.`;
+IMPORTANT: Çıktının geçerli JSON formatında olduğundan ve otomasyon planlaması için gerekli tüm detayları TÜRKÇE olarak içerdiğinden emin olun.`;
   }
 }
