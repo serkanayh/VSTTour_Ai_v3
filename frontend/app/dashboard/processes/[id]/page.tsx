@@ -436,19 +436,6 @@ export default function ProcessDetailPage() {
     }
   };
 
-  const handleAnalyze = async () => {
-    try {
-      setActionLoading('analyze');
-      await api.analyzeProcess(params.id as string);
-      alert('AI analizi başlatıldı. Bu işlem birkaç dakika sürebilir.');
-      await loadProcess();
-    } catch (error) {
-      console.error('Failed to analyze process:', error);
-      alert('Failed to start AI analysis');
-    } finally {
-      setActionLoading(null);
-    }
-  };
 
   const handleExport = async () => {
     try {
@@ -782,15 +769,6 @@ export default function ProcessDetailPage() {
                     </button>
                   )}
 
-                  <button
-                    onClick={handleAnalyze}
-                    disabled={actionLoading === 'analyze'}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
-                  >
-                    <Bot className="h-4 w-4 mr-2" />
-                    {actionLoading === 'analyze' ? 'Analiz Ediliyor...' : 'AI Analizi'}
-                  </button>
-
                   {canExport && (
                     <button
                       onClick={handleExport}
@@ -801,6 +779,25 @@ export default function ProcessDetailPage() {
                       {actionLoading === 'export' ? 'Export Ediliyor...' : 'n8n\'e Export Et'}
                     </button>
                   )}
+                </div>
+
+                <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Bot className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 mb-1">AI Analizi için</p>
+                      <p className="text-sm text-gray-700">
+                        Süreci AI ile analiz etmek ve iyileştirme önerileri almak için
+                        <button
+                          onClick={() => setActiveTab('steps')}
+                          className="text-purple-600 hover:text-purple-800 font-semibold mx-1 underline"
+                        >
+                          Adımlar
+                        </button>
+                        sekmesine gidin ve "AI ile Analiz Et" butonunu kullanın.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
