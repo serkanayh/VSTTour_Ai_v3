@@ -126,11 +126,13 @@ export class AdminService {
 
     const updateData: any = { ...updateDto };
 
-    // Encrypt new API key if provided
-    if (updateDto.apiKey) {
+    // Encrypt new API key if provided (and not empty)
+    if (updateDto.apiKey && updateDto.apiKey.trim()) {
       updateData.apiKeyEncrypted = this.encryptionService.encrypt(updateDto.apiKey);
-      delete updateData.apiKey;
     }
+
+    // ALWAYS remove apiKey field from update data
+    delete updateData.apiKey;
 
     const updated = await this.prisma.aiConfiguration.update({
       where: { id },
