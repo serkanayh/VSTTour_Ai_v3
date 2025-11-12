@@ -247,48 +247,66 @@ IMPORTANT:
         throw new BadRequestException('Failed to extract valid steps structure from AI response');
       }
 
-      // Create steps in database
-      const createdSteps = [];
-      for (const stepData of stepsData.steps) {
-        const step = await this.prisma.processStep.create({
+      // Create or get ProcessVersion
+      let version = await this.prisma.processVersion.findFirst({
+        where: {
+          processId: processId,
+          version: 1,
+        },
+      });
+
+      // Create version if doesn't exist
+      if (!version) {
+        version = await this.prisma.processVersion.create({
           data: {
             processId: processId,
-            title: stepData.title,
-            description: stepData.description || '',
-            stepOrder: stepData.order || createdSteps.length + 1,
-            estimatedMinutes: stepData.estimatedMinutes,
+            version: 1,
+            sopJson: { steps: [] },
+            formData: {},
+            createdById: userId,
           },
         });
-
-        // Create substeps if any
-        if (stepData.subSteps && Array.isArray(stepData.subSteps)) {
-          for (const subStepData of stepData.subSteps) {
-            await this.prisma.subStep.create({
-              data: {
-                stepId: step.id,
-                title: subStepData.title,
-                description: subStepData.description || '',
-                stepOrder: subStepData.order || 0,
-                estimatedMinutes: subStepData.estimatedMinutes,
-              },
-            });
-          }
-        }
-
-        createdSteps.push(step);
       }
 
-      // Update process status to PENDING_REVIEW
+      // Format steps with IDs
+      const formattedSteps = stepsData.steps.map((stepData: any, index: number) => ({
+        id: `step-${Date.now()}-${index}`,
+        order: stepData.order || index + 1,
+        title: stepData.title,
+        description: stepData.description || '',
+        estimatedMinutes: stepData.estimatedMinutes || null,
+        subSteps: stepData.subSteps
+          ? stepData.subSteps.map((subStepData: any, subIndex: number) => ({
+              id: `substep-${Date.now()}-${index}-${subIndex}`,
+              order: subStepData.order || subIndex + 1,
+              title: subStepData.title,
+              description: subStepData.description || '',
+              estimatedMinutes: subStepData.estimatedMinutes || null,
+            }))
+          : [],
+      }));
+
+      // Update ProcessVersion with steps
+      await this.prisma.processVersion.update({
+        where: { id: version.id },
+        data: {
+          sopJson: {
+            steps: formattedSteps,
+          },
+        },
+      });
+
+      // Update process status to WAITING_APPROVAL
       await this.prisma.process.update({
         where: { id: processId },
         data: {
-          status: 'PENDING_REVIEW',
+          status: 'WAITING_APPROVAL',
         },
       });
 
       return {
-        message: `${createdSteps.length} steps generated successfully`,
-        steps: stepsData.steps,
+        message: `${formattedSteps.length} steps generated successfully`,
+        steps: formattedSteps,
         processId,
       };
     } catch (error) {
