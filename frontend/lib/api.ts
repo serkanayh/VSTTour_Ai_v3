@@ -119,26 +119,24 @@ class ApiClient {
     return response.data;
   }
 
-  async approveProcess(processId: string, comment?: string) {
-    const response = await this.client.post(`/approval/${processId}/approve`, { comment });
+  async approveProcess(approvalId: string, comment?: string) {
+    const response = await this.client.post(`/approval/approve/${approvalId}`, { comment });
     return response.data;
   }
 
-  async rejectProcess(processId: string, comment: string) {
-    const response = await this.client.post(`/approval/${processId}/reject`, { comment });
+  async rejectProcess(approvalId: string, comment: string) {
+    const response = await this.client.post(`/approval/reject/${approvalId}`, { comment });
     return response.data;
   }
 
   // Integration endpoints
   async exportToN8n(processId: string) {
-    const response = await this.client.post(`/integration/export/${processId}`);
+    const response = await this.client.post(`/integration/export/${processId}/n8n`);
     return response.data;
   }
 
-  async getExportHistory(processId?: string) {
-    const response = await this.client.get('/integration/history', {
-      params: processId ? { processId } : undefined,
-    });
+  async getExportHistory(processId: string) {
+    const response = await this.client.get(`/integration/exports/${processId}`);
     return response.data;
   }
 

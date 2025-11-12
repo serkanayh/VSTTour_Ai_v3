@@ -666,22 +666,13 @@ export default function ProcessDetailPage() {
 
         <div className="flex items-center gap-2">
           {canEdit && (
-            <>
-              <Link
-                href={`/dashboard/processes/${process.id}/edit`}
-                className="btn-secondary flex items-center"
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Düzenle
-              </Link>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="bg-red-100 text-red-700 hover:bg-red-200 font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Sil
-              </button>
-            </>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="bg-red-100 text-red-700 hover:bg-red-200 font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Sil
+            </button>
           )}
         </div>
       </div>

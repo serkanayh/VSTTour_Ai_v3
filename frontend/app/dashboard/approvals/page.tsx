@@ -47,10 +47,10 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleApprove = async (processId: string) => {
+  const handleApprove = async (approvalId: string) => {
     try {
-      setActionLoading(processId);
-      await api.approveProcess(processId, comment || undefined);
+      setActionLoading(approvalId);
+      await api.approveProcess(approvalId, comment || undefined);
       await loadApprovals();
       setSelectedApproval(null);
       setComment('');
@@ -62,15 +62,15 @@ export default function ApprovalsPage() {
     }
   };
 
-  const handleReject = async (processId: string) => {
+  const handleReject = async (approvalId: string) => {
     if (!comment.trim()) {
       alert('Please provide a reason for rejection');
       return;
     }
 
     try {
-      setActionLoading(processId);
-      await api.rejectProcess(processId, comment);
+      setActionLoading(approvalId);
+      await api.rejectProcess(approvalId, comment);
       await loadApprovals();
       setSelectedApproval(null);
       setComment('');
@@ -195,27 +195,27 @@ export default function ApprovalsPage() {
                         onChange={(e) => setComment(e.target.value)}
                         className="input min-h-[80px]"
                         placeholder="Add your feedback or reason..."
-                        disabled={actionLoading === approval.processId}
+                        disabled={actionLoading === approval.id}
                       />
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleApprove(approval.processId)}
-                        disabled={actionLoading === approval.processId}
+                        onClick={() => handleApprove(approval.id)}
+                        disabled={actionLoading === approval.id}
                         className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
-                        {actionLoading === approval.processId
+                        {actionLoading === approval.id
                           ? 'Approving...'
                           : 'Approve'}
                       </button>
                       <button
-                        onClick={() => handleReject(approval.processId)}
-                        disabled={actionLoading === approval.processId}
+                        onClick={() => handleReject(approval.id)}
+                        disabled={actionLoading === approval.id}
                         className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center disabled:opacity-50"
                       >
                         <XCircle className="h-4 w-4 mr-2" />
-                        {actionLoading === approval.processId
+                        {actionLoading === approval.id
                           ? 'Rejecting...'
                           : 'Reject'}
                       </button>
