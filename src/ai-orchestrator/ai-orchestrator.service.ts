@@ -173,6 +173,130 @@ IMPORTANT: Tüm yanıtlarını TÜRKÇE olarak ver. Konuşmacı ol ama odaklı k
     }
   }
 
+  async generateStepsFromConversation(
+    processId: string,
+    conversationHistory: Array<{ role: string; content: string }>,
+    userId: string,
+  ) {
+    // Verify process exists and user has access
+    const process = await this.prisma.process.findUnique({
+      where: { id: processId },
+    });
+
+    if (!process) {
+      throw new BadRequestException('Process not found');
+    }
+
+    if (process.createdById !== userId) {
+      throw new BadRequestException('You do not have access to this process');
+    }
+
+    // Build prompt to extract steps from conversation
+    const extractionPrompt = `
+IMPORTANT: You MUST respond in Turkish language with valid JSON format.
+
+Aşağıdaki konuşma geçmişini analiz ederek iş sürecinin adımlarını çıkar.
+
+Konuşma Geçmişi:
+${conversationHistory
+  .filter((msg) => msg.role !== 'system')
+  .map((msg) => `${msg.role === 'user' ? 'Kullanıcı' : 'Asistan'}: ${msg.content}`)
+  .join('\n\n')}
+
+Lütfen bu konuşmadan tüm süreç adımlarını ve alt adımlarını çıkar ve aşağıdaki JSON formatında döndür:
+
+{
+  "steps": [
+    {
+      "title": "Adım başlığı (TÜRKÇE)",
+      "description": "Adım açıklaması (TÜRKÇE)",
+      "order": 1,
+      "estimatedMinutes": 5,
+      "subSteps": [
+        {
+          "title": "Alt adım başlığı (TÜRKÇE)",
+          "description": "Alt adım açıklaması (TÜRKÇE)",
+          "order": 1,
+          "estimatedMinutes": 2
+        }
+      ]
+    }
+  ]
+}
+
+IMPORTANT:
+1. Tüm metinler TÜRKÇE olmalı
+2. Her adım için net bir başlık ve açıklama olmalı
+3. Mümkünse tahmini süre belirt
+4. Alt adımları varsa ekle
+5. Adımları mantıksal sıraya göre orderla
+6. Sadece JSON döndür, başka hiçbir metin ekleme
+`;
+
+    try {
+      const systemPrompt = await this.getSystemPrompt();
+      const aiResponse = await this.openAiService.chat([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: extractionPrompt },
+      ]);
+
+      // Extract JSON from response
+      const stepsData = this.extractStructuredData(aiResponse);
+
+      if (!stepsData || !stepsData.steps || !Array.isArray(stepsData.steps)) {
+        throw new BadRequestException('Failed to extract valid steps structure from AI response');
+      }
+
+      // Create steps in database
+      const createdSteps = [];
+      for (const stepData of stepsData.steps) {
+        const step = await this.prisma.processStep.create({
+          data: {
+            processId: processId,
+            title: stepData.title,
+            description: stepData.description || '',
+            stepOrder: stepData.order || createdSteps.length + 1,
+            estimatedMinutes: stepData.estimatedMinutes,
+          },
+        });
+
+        // Create substeps if any
+        if (stepData.subSteps && Array.isArray(stepData.subSteps)) {
+          for (const subStepData of stepData.subSteps) {
+            await this.prisma.subStep.create({
+              data: {
+                stepId: step.id,
+                title: subStepData.title,
+                description: subStepData.description || '',
+                stepOrder: subStepData.order || 0,
+                estimatedMinutes: subStepData.estimatedMinutes,
+              },
+            });
+          }
+        }
+
+        createdSteps.push(step);
+      }
+
+      // Update process status to PENDING_REVIEW
+      await this.prisma.process.update({
+        where: { id: processId },
+        data: {
+          status: 'PENDING_REVIEW',
+        },
+      });
+
+      return {
+        message: `${createdSteps.length} steps generated successfully`,
+        steps: stepsData.steps,
+        processId,
+      };
+    } catch (error) {
+      console.error('Step Generation Error:', error);
+      throw new BadRequestException('Failed to generate steps from conversation: ' + error.message);
+    }
+  }
+
   async generateSOP(processId: string, userId: string) {
     const process = await this.prisma.process.findUnique({
       where: { id: processId },

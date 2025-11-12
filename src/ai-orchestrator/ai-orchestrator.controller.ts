@@ -9,11 +9,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @ApiTags('ai')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('process')
+@Controller('ai-orchestrator')
 export class AiOrchestratorController {
   constructor(private readonly aiOrchestratorService: AiOrchestratorService) {}
 
-  @Post('start-form')
+  @Post('start')
   @ApiOperation({ summary: 'Start a new process documentation session with AI' })
   @ApiResponse({ status: 201, description: 'Process session started' })
   @ApiResponse({ status: 400, description: 'Missing data' })
@@ -21,13 +21,29 @@ export class AiOrchestratorController {
     return this.aiOrchestratorService.startProcessForm(startFormDto, userId);
   }
 
-  @Post('chat-input')
+  @Post('chat')
   @ApiOperation({ summary: 'Send chat message to AI for process documentation' })
   @ApiResponse({ status: 200, description: 'AI response returned' })
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   @ApiResponse({ status: 503, description: 'AI service error' })
   chatInput(@Body() chatInputDto: ChatInputDto, @CurrentUser('userId') userId: string) {
     return this.aiOrchestratorService.handleChatInput(chatInputDto, userId);
+  }
+
+  @Post('generate-steps/:processId')
+  @ApiOperation({ summary: 'Generate process steps from conversation history' })
+  @ApiResponse({ status: 200, description: 'Steps generated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid process or insufficient data' })
+  generateSteps(
+    @Param('processId') processId: string,
+    @Body() body: { conversationHistory: Array<{ role: string; content: string }> },
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.aiOrchestratorService.generateStepsFromConversation(
+      processId,
+      body.conversationHistory,
+      userId,
+    );
   }
 
   @Post(':id/generate-sop')

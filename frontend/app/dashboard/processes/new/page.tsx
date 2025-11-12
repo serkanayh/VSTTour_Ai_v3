@@ -1,215 +1,48 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import {
   ArrowLeft,
-  ArrowRight,
-  Save,
+  Send,
+  Loader2,
+  CheckCircle2,
   AlertCircle,
-  Check,
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  GripVertical,
+  MessageSquare,
+  Edit,
+  Save,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { ProcessStatus } from '@/lib/store';
 
-interface Step {
-  id: string;
+type Phase = 'form' | 'chat' | 'review';
+
+interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+}
+
+interface ProcessStep {
   title: string;
   description: string;
-  estimatedMinutes: string;
-  subSteps: SubStep[];
+  order: number;
+  estimatedMinutes?: number;
+  subSteps?: ProcessSubStep[];
 }
 
-interface SubStep {
-  id: string;
+interface ProcessSubStep {
   title: string;
   description: string;
-  estimatedMinutes: string;
-}
-
-type WizardStep = 'basic' | 'metrics' | 'steps' | 'review';
-
-interface SortableStepItemProps {
-  step: Step;
-  stepIndex: number;
-  expandedSteps: Set<string>;
-  onToggleExpand: (stepId: string) => void;
-  onEdit: (index: number) => void;
-  onDelete: (index: number) => void;
-  onAddSubStep: (stepIndex: number) => void;
-  onEditSubStep: (stepIndex: number, subStepIndex: number) => void;
-  onDeleteSubStep: (stepIndex: number, subStepIndex: number) => void;
-}
-
-function SortableStepItem({
-  step,
-  stepIndex,
-  expandedSteps,
-  onToggleExpand,
-  onEdit,
-  onDelete,
-  onAddSubStep,
-  onEditSubStep,
-  onDeleteSubStep,
-}: SortableStepItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: step.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} className="card bg-white border-2 border-blue-200">
-      <div className="flex items-start gap-3">
-        <button
-          {...attributes}
-          {...listeners}
-          className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 mt-1"
-        >
-          <GripVertical className="h-5 w-5" />
-        </button>
-        <div className="bg-blue-100 text-blue-800 font-semibold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
-          {stepIndex + 1}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-gray-900">{step.title}</h4>
-          <p className="text-sm text-gray-600 mt-1">{step.description}</p>
-          {step.estimatedMinutes && (
-            <p className="text-xs text-gray-500 mt-1">
-              Tahmini süre: {step.estimatedMinutes} dakika
-            </p>
-          )}
-
-          {/* Sub-steps section */}
-          {step.subSteps.length > 0 && (
-            <div className="mt-3 ml-0">
-              <button
-                onClick={() => onToggleExpand(step.id)}
-                className="flex items-center gap-2 text-sm font-medium text-green-700 hover:text-green-800 transition-colors"
-              >
-                {expandedSteps.has(step.id) ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-                Alt Adımlar ({step.subSteps.length})
-              </button>
-
-              {expandedSteps.has(step.id) && (
-                <div className="mt-2 space-y-2 ml-6">
-                  {step.subSteps.map((subStep, subStepIndex) => (
-                    <div
-                      key={subStep.id}
-                      className="bg-gray-50 rounded-lg p-3 border border-green-200"
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="bg-green-100 text-green-800 text-xs font-semibold rounded px-2 py-1 flex-shrink-0">
-                          {stepIndex + 1}.{subStepIndex + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h5 className="text-sm font-medium text-gray-900">{subStep.title}</h5>
-                          <p className="text-xs text-gray-600 mt-0.5">{subStep.description}</p>
-                          {subStep.estimatedMinutes && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {subStep.estimatedMinutes} dakika
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => onEditSubStep(stepIndex, subStepIndex)}
-                            className="text-blue-600 hover:text-blue-800 p-1"
-                            title="Düzenle"
-                          >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => onDeleteSubStep(stepIndex, subStepIndex)}
-                            className="text-red-600 hover:text-red-800 p-1"
-                            title="Sil"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Add sub-step button */}
-          <button
-            onClick={() => onAddSubStep(stepIndex)}
-            className="mt-2 text-sm text-green-600 hover:text-green-800 font-medium flex items-center gap-1"
-          >
-            <Plus className="h-3 w-3" />
-            Alt Adım Ekle
-          </button>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => onEdit(stepIndex)}
-            className="text-blue-600 hover:text-blue-800 p-1"
-            title="Düzenle"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => onDelete(stepIndex)}
-            className="text-red-600 hover:text-red-800 p-1"
-            title="Sil"
-          >
-            <Trash2 className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  order: number;
+  estimatedMinutes?: number;
 }
 
 export default function NewProcessPage() {
   const router = useRouter();
 
-  // Wizard state
-  const [currentStep, setCurrentStep] = useState<WizardStep>('basic');
+  // Phase management
+  const [currentPhase, setCurrentPhase] = useState<Phase>('form');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -218,208 +51,45 @@ export default function NewProcessPage() {
     name: '',
     description: '',
     department: '',
-    estimatedTimeMinutes: '',
-    tasksPerDay: '',
-    minutesPerTask: '',
-    costPerHour: '',
   });
 
-  // Process steps
-  const [processSteps, setProcessSteps] = useState<Step[]>([]);
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  // Process and chat data
+  const [processId, setProcessId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [isChatComplete, setIsChatComplete] = useState(false);
 
-  // Step form
-  const [showStepForm, setShowStepForm] = useState(false);
+  // Generated steps
+  const [generatedSteps, setGeneratedSteps] = useState<ProcessStep[]>([]);
   const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
-  const [stepFormData, setStepFormData] = useState({ title: '', description: '', estimatedMinutes: '' });
 
-  // Sub-step form
-  const [showSubStepForm, setShowSubStepForm] = useState(false);
-  const [parentStepIndex, setParentStepIndex] = useState<number | null>(null);
-  const [editingSubStepIndex, setEditingSubStepIndex] = useState<number | null>(null);
-  const [subStepFormData, setSubStepFormData] = useState({ title: '', description: '', estimatedMinutes: '' });
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const steps: { id: WizardStep; title: string; description: string }[] = [
-    { id: 'basic', title: 'Temel Bilgiler', description: 'Süreç adı ve departman' },
-    { id: 'metrics', title: 'Süreç Metrikleri', description: 'ROI hesaplaması için' },
-    { id: 'steps', title: 'Süreç Adımları', description: 'Ana ve alt adımlar' },
-    { id: 'review', title: 'İnceleme', description: 'Son kontrol ve kaydet' },
-  ];
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const currentStepIndex = steps.findIndex(s => s.id === currentStep);
-
-  // Drag & Drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!over || active.id === over.id) {
-      return;
+  // Focus input after assistant responds
+  useEffect(() => {
+    if (currentPhase === 'chat' && !isLoading) {
+      inputRef.current?.focus();
     }
+  }, [isLoading, currentPhase]);
 
-    const oldIndex = processSteps.findIndex((step) => step.id === active.id);
-    const newIndex = processSteps.findIndex((step) => step.id === over.id);
-
-    setProcessSteps(arrayMove(processSteps, oldIndex, newIndex));
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
   };
 
-  const validateBasicInfo = () => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (!formData.name.trim()) {
       setError('Süreç adı zorunludur');
-      return false;
-    }
-    setError('');
-    return true;
-  };
-
-  const validateMetrics = () => {
-    // Metrics are optional
-    setError('');
-    return true;
-  };
-
-  const handleNext = () => {
-    if (currentStep === 'basic' && !validateBasicInfo()) return;
-    if (currentStep === 'metrics' && !validateMetrics()) return;
-
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setCurrentStep(steps[nextIndex].id);
-    }
-  };
-
-  const handlePrevious = () => {
-    const prevIndex = currentStepIndex - 1;
-    if (prevIndex >= 0) {
-      setCurrentStep(steps[prevIndex].id);
-    }
-  };
-
-  const handleAddStep = () => {
-    if (!stepFormData.title || !stepFormData.description) {
-      alert('Başlık ve açıklama zorunludur');
-      return;
-    }
-
-    if (editingStepIndex !== null) {
-      // Update existing step
-      const updated = [...processSteps];
-      updated[editingStepIndex] = {
-        ...updated[editingStepIndex],
-        title: stepFormData.title,
-        description: stepFormData.description,
-        estimatedMinutes: stepFormData.estimatedMinutes,
-      };
-      setProcessSteps(updated);
-    } else {
-      // Add new step
-      const newStep: Step = {
-        id: `step-${Date.now()}`,
-        title: stepFormData.title,
-        description: stepFormData.description,
-        estimatedMinutes: stepFormData.estimatedMinutes,
-        subSteps: [],
-      };
-      setProcessSteps([...processSteps, newStep]);
-    }
-
-    setStepFormData({ title: '', description: '', estimatedMinutes: '' });
-    setShowStepForm(false);
-    setEditingStepIndex(null);
-  };
-
-  const handleDeleteStep = (index: number) => {
-    setProcessSteps(processSteps.filter((_, i) => i !== index));
-  };
-
-  const handleEditStep = (index: number) => {
-    const step = processSteps[index];
-    setStepFormData({
-      title: step.title,
-      description: step.description,
-      estimatedMinutes: step.estimatedMinutes,
-    });
-    setEditingStepIndex(index);
-    setShowStepForm(true);
-  };
-
-  const toggleStepExpansion = (stepId: string) => {
-    const newExpanded = new Set(expandedSteps);
-    if (newExpanded.has(stepId)) {
-      newExpanded.delete(stepId);
-    } else {
-      newExpanded.add(stepId);
-    }
-    setExpandedSteps(newExpanded);
-  };
-
-  const handleAddSubStep = () => {
-    if (!subStepFormData.title || !subStepFormData.description || parentStepIndex === null) {
-      alert('Başlık ve açıklama zorunludur');
-      return;
-    }
-
-    const updated = [...processSteps];
-
-    if (editingSubStepIndex !== null) {
-      // Update existing sub-step
-      updated[parentStepIndex].subSteps[editingSubStepIndex] = {
-        id: updated[parentStepIndex].subSteps[editingSubStepIndex].id,
-        title: subStepFormData.title,
-        description: subStepFormData.description,
-        estimatedMinutes: subStepFormData.estimatedMinutes,
-      };
-    } else {
-      // Add new sub-step
-      const newSubStep: SubStep = {
-        id: `substep-${Date.now()}`,
-        title: subStepFormData.title,
-        description: subStepFormData.description,
-        estimatedMinutes: subStepFormData.estimatedMinutes,
-      };
-      updated[parentStepIndex].subSteps.push(newSubStep);
-    }
-
-    setProcessSteps(updated);
-    setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
-    setShowSubStepForm(false);
-    setEditingSubStepIndex(null);
-  };
-
-  const handleDeleteSubStep = (stepIndex: number, subStepIndex: number) => {
-    const updated = [...processSteps];
-    updated[stepIndex].subSteps = updated[stepIndex].subSteps.filter((_, i) => i !== subStepIndex);
-    setProcessSteps(updated);
-  };
-
-  const handleEditSubStep = (stepIndex: number, subStepIndex: number) => {
-    const subStep = processSteps[stepIndex].subSteps[subStepIndex];
-    setSubStepFormData({
-      title: subStep.title,
-      description: subStep.description,
-      estimatedMinutes: subStep.estimatedMinutes,
-    });
-    setParentStepIndex(stepIndex);
-    setEditingSubStepIndex(subStepIndex);
-    setShowSubStepForm(true);
-  };
-
-  const handleSubmit = async () => {
-    if (!validateBasicInfo()) {
-      setCurrentStep('basic');
       return;
     }
 
@@ -427,60 +97,202 @@ export default function NewProcessPage() {
     setIsLoading(true);
 
     try {
-      const processData: any = {
-        name: formData.name,
+      // Start AI process conversation
+      const response = await api.post('/ai-orchestrator/start', {
+        processName: formData.name,
         description: formData.description || undefined,
-        department: formData.department || undefined,
-        status: ProcessStatus.DRAFT,
-      };
+        departmentId: formData.department || undefined,
+      });
 
-      // Add optional numeric fields
-      if (formData.estimatedTimeMinutes) {
-        processData.estimatedTimeMinutes = parseInt(formData.estimatedTimeMinutes);
-      }
-      if (formData.tasksPerDay) {
-        processData.tasksPerDay = parseInt(formData.tasksPerDay);
-      }
-      if (formData.minutesPerTask) {
-        processData.minutesPerTask = parseInt(formData.minutesPerTask);
-      }
-      if (formData.costPerHour) {
-        processData.costPerHour = parseFloat(formData.costPerHour);
-      }
+      setProcessId(response.data.processId);
 
-      const newProcess = await api.createProcess(processData);
+      // Add initial AI message
+      setMessages([
+        {
+          role: 'assistant',
+          content: response.data.aiPrompt || `Merhaba! "${formData.name}" sürecini birlikte oluşturalım. Lütfen bu sürecin nasıl işlediğini detaylı bir şekilde anlatır mısınız? Hangi adımları içeriyor?`,
+          timestamp: new Date(),
+        },
+      ]);
 
-      // Add steps if any
-      for (const step of processSteps) {
-        const stepData = {
-          title: step.title,
-          description: step.description,
-          estimatedMinutes: step.estimatedMinutes ? parseInt(step.estimatedMinutes) : undefined,
-        };
-        const createdStep = await api.addProcessStep(newProcess.id, stepData);
-
-        // Add sub-steps if any
-        for (const subStep of step.subSteps) {
-          const subStepData = {
-            title: subStep.title,
-            description: subStep.description,
-            estimatedMinutes: subStep.estimatedMinutes ? parseInt(subStep.estimatedMinutes) : undefined,
-          };
-          await api.addSubStep(newProcess.id, createdStep.step.id, subStepData);
-        }
-      }
-
-      router.push(`/dashboard/processes/${newProcess.id}`);
+      setCurrentPhase('chat');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create process');
-      setCurrentStep('basic');
+      setError(err.response?.data?.message || 'Süreç başlatılamadı');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleSendMessage = async () => {
+    if (!userInput.trim() || !processId || isLoading) return;
+
+    const userMessage: Message = {
+      role: 'user',
+      content: userInput.trim(),
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setUserInput('');
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await api.post('/ai-orchestrator/chat', {
+        processId,
+        userMessage: userMessage.content,
+        conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
+      });
+
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: response.data.response,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // Check if conversation is complete
+      if (response.data.isComplete || response.data.structuredData) {
+        setIsChatComplete(true);
+
+        // Add completion message
+        setTimeout(() => {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'system',
+              content: '✅ Harika! Yeterli bilgi toplandı. Şimdi adımları oluşturuyorum...',
+              timestamp: new Date(),
+            },
+          ]);
+
+          // Generate steps automatically
+          setTimeout(() => generateStepsFromConversation(), 2000);
+        }, 500);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Mesaj gönderilemedi');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const generateStepsFromConversation = async () => {
+    if (!processId) return;
+
+    setIsLoading(true);
+    try {
+      // Call backend to extract and create steps from conversation
+      const response = await api.post(`/ai-orchestrator/generate-steps/${processId}`, {
+        conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
+      });
+
+      setGeneratedSteps(response.data.steps || []);
+      setCurrentPhase('review');
+
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'system',
+          content: `✨ ${response.data.steps?.length || 0} adım başarıyla oluşturuldu! Lütfen kontrol edin.`,
+          timestamp: new Date(),
+        },
+      ]);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Adımlar oluşturulamadı');
+      setIsChatComplete(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditStep = (index: number) => {
+    setEditingStepIndex(index);
+  };
+
+  const handleUpdateStep = (index: number, field: string, value: string) => {
+    const updated = [...generatedSteps];
+    updated[index] = { ...updated[index], [field]: value };
+    setGeneratedSteps(updated);
+  };
+
+  const handleSubmitForApproval = async () => {
+    if (!processId) return;
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      // Update process with final steps and submit for approval
+      await api.patch(`/process/${processId}/submit-for-approval`, {
+        steps: generatedSteps,
+      });
+
+      router.push(`/dashboard/processes/${processId}`);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Onaya gönderilemedi');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderPhaseIndicator = () => {
+    const phases = [
+      { id: 'form', label: 'Temel Bilgiler' },
+      { id: 'chat', label: 'AI ile Detaylandırma' },
+      { id: 'review', label: 'İnceleme ve Onay' },
+    ];
+
+    return (
+      <div className="flex items-center justify-between mb-8">
+        {phases.map((phase, index) => (
+          <div key={phase.id} className="flex items-center flex-1">
+            <div className="flex flex-col items-center flex-1">
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
+                  phases.findIndex(p => p.id === currentPhase) > index
+                    ? 'bg-green-500 text-white'
+                    : phases.findIndex(p => p.id === currentPhase) === index
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                }`}
+              >
+                {phases.findIndex(p => p.id === currentPhase) > index ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  index + 1
+                )}
+              </div>
+              <div className="mt-2 text-center">
+                <div
+                  className={`text-sm font-medium ${
+                    phases.findIndex(p => p.id === currentPhase) === index
+                      ? 'text-blue-600'
+                      : 'text-gray-600'
+                  }`}
+                >
+                  {phase.label}
+                </div>
+              </div>
+            </div>
+            {index < phases.length - 1 && (
+              <div
+                className={`h-1 w-full mx-2 -mt-12 transition-all ${
+                  phases.findIndex(p => p.id === currentPhase) > index
+                    ? 'bg-green-500'
+                    : 'bg-gray-200'
+                }`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 pb-8">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/dashboard/processes" className="text-gray-600 hover:text-gray-900">
@@ -489,41 +301,14 @@ export default function NewProcessPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Yeni Süreç Oluştur</h1>
           <p className="text-gray-600 mt-1">
-            İş sürecinizi adım adım oluşturun
+            AI asistanı ile sürecinizi adım adım oluşturun
           </p>
         </div>
       </div>
 
-      {/* Progress Indicator */}
+      {/* Phase Indicator */}
       <div className="card">
-        <div className="flex items-center justify-between">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex items-center flex-1">
-              <div className="flex flex-col items-center flex-1">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                  index < currentStepIndex ? 'bg-green-500 text-white' :
-                  index === currentStepIndex ? 'bg-blue-600 text-white' :
-                  'bg-gray-200 text-gray-600'
-                }`}>
-                  {index < currentStepIndex ? <Check className="h-5 w-5" /> : index + 1}
-                </div>
-                <div className="mt-2 text-center">
-                  <div className={`text-sm font-medium ${
-                    index === currentStepIndex ? 'text-blue-600' : 'text-gray-600'
-                  }`}>
-                    {step.title}
-                  </div>
-                  <div className="text-xs text-gray-500">{step.description}</div>
-                </div>
-              </div>
-              {index < steps.length - 1 && (
-                <div className={`h-1 w-full mx-2 -mt-12 transition-all ${
-                  index < currentStepIndex ? 'bg-green-500' : 'bg-gray-200'
-                }`} />
-              )}
-            </div>
-          ))}
-        </div>
+        {renderPhaseIndicator()}
       </div>
 
       {/* Error Message */}
@@ -534,12 +319,13 @@ export default function NewProcessPage() {
         </div>
       )}
 
-      {/* Step Content */}
-      <div className="card">
-        {/* Step 1: Basic Information */}
-        {currentStep === 'basic' && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">Temel Bilgiler</h2>
+      {/* Phase 1: Form */}
+      {currentPhase === 'form' && (
+        <div className="card">
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Önce temel bilgileri girelim
+            </h2>
 
             <div>
               <label htmlFor="name" className="label">
@@ -550,24 +336,25 @@ export default function NewProcessPage() {
                 name="name"
                 type="text"
                 value={formData.name}
-                onChange={handleChange}
+                onChange={handleFormChange}
                 className="input"
-                placeholder="örn: Fatura İşlemleri"
+                placeholder="örn: Fatura Onay Süreci"
                 required
+                autoFocus
               />
             </div>
 
             <div>
               <label htmlFor="description" className="label">
-                Açıklama
+                Kısa Açıklama
               </label>
               <textarea
                 id="description"
                 name="description"
                 value={formData.description}
-                onChange={handleChange}
-                className="input min-h-[120px] resize-y"
-                placeholder="Süreci detaylı olarak açıklayın..."
+                onChange={handleFormChange}
+                className="input min-h-[100px] resize-y"
+                placeholder="Sürecin genel amacını kısaca açıklayın..."
               />
             </div>
 
@@ -580,444 +367,251 @@ export default function NewProcessPage() {
                 name="department"
                 type="text"
                 value={formData.department}
-                onChange={handleChange}
+                onChange={handleFormChange}
                 className="input"
-                placeholder="örn: Finans, IT, Satış"
+                placeholder="örn: Finans, Muhasebe, İnsan Kaynakları"
               />
             </div>
-          </div>
-        )}
 
-        {/* Step 2: Process Metrics */}
-        {currentStep === 'metrics' && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Süreç Metrikleri
-              </h2>
-              <p className="text-sm text-gray-600">
-                Bu metrikler opsiyoneldir ancak ROI ve potansiyel tasarruf hesaplamalarına yardımcı olur
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="estimatedTimeMinutes" className="label">
-                  Tahmini Süre (dakika)
-                </label>
-                <input
-                  id="estimatedTimeMinutes"
-                  name="estimatedTimeMinutes"
-                  type="number"
-                  min="0"
-                  value={formData.estimatedTimeMinutes}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder="60"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="tasksPerDay" className="label">
-                  Günlük İşlem Sayısı
-                </label>
-                <input
-                  id="tasksPerDay"
-                  name="tasksPerDay"
-                  type="number"
-                  min="0"
-                  value={formData.tasksPerDay}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder="10"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="minutesPerTask" className="label">
-                  İşlem Başına Süre (dakika)
-                </label>
-                <input
-                  id="minutesPerTask"
-                  name="minutesPerTask"
-                  type="number"
-                  min="0"
-                  value={formData.minutesPerTask}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder="15"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="costPerHour" className="label">
-                  Saat Başı Maliyet ($)
-                </label>
-                <input
-                  id="costPerHour"
-                  name="costPerHour"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.costPerHour}
-                  onChange={handleChange}
-                  className="input"
-                  placeholder="50.00"
-                />
-              </div>
-            </div>
-
-            {/* ROI Calculation Info */}
-            {formData.tasksPerDay &&
-              formData.minutesPerTask &&
-              formData.costPerHour && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-900 font-medium mb-2">
-                    Tahmini Metrikler:
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
-                    <div>
-                      Günlük saat:{' '}
-                      {(
-                        (parseInt(formData.tasksPerDay) *
-                          parseInt(formData.minutesPerTask)) /
-                        60
-                      ).toFixed(2)}
-                    </div>
-                    <div>
-                      Günlük maliyet: $
-                      {(
-                        ((parseInt(formData.tasksPerDay) *
-                          parseInt(formData.minutesPerTask)) /
-                          60) *
-                        parseFloat(formData.costPerHour)
-                      ).toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-              )}
-          </div>
-        )}
-
-        {/* Step 3: Process Steps */}
-        {currentStep === 'steps' && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Süreç Adımları</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Süreç adımlarını ve alt adımlarını tanımlayın
-                </p>
-              </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Link href="/dashboard/processes" className="btn-secondary">
+                İptal
+              </Link>
               <button
-                onClick={() => {
-                  setEditingStepIndex(null);
-                  setStepFormData({ title: '', description: '', estimatedMinutes: '' });
-                  setShowStepForm(true);
-                }}
-                className="btn-primary flex items-center"
+                type="submit"
+                disabled={isLoading}
+                className="btn-primary flex items-center disabled:opacity-50"
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Yeni Adım
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Başlatılıyor...
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    AI ile Devam Et
+                  </>
+                )}
               </button>
             </div>
+          </form>
+        </div>
+      )}
 
-            {/* Step Form */}
-            {showStepForm && (
-              <div className="card bg-blue-50 border-2 border-blue-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  {editingStepIndex !== null ? 'Adımı Düzenle' : 'Yeni Adım Ekle'}
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="label">Başlık *</label>
-                    <input
-                      type="text"
-                      value={stepFormData.title}
-                      onChange={(e) => setStepFormData({ ...stepFormData, title: e.target.value })}
-                      className="input"
-                      placeholder="Adım başlığı"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Açıklama *</label>
-                    <textarea
-                      value={stepFormData.description}
-                      onChange={(e) => setStepFormData({ ...stepFormData, description: e.target.value })}
-                      className="input min-h-[80px]"
-                      placeholder="Adım açıklaması"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Tahmini Süre (dakika)</label>
-                    <input
-                      type="number"
-                      value={stepFormData.estimatedMinutes}
-                      onChange={(e) => setStepFormData({ ...stepFormData, estimatedMinutes: e.target.value })}
-                      className="input"
-                      placeholder="15"
-                    />
-                  </div>
-                  <div className="flex gap-3 justify-end">
-                    <button
-                      onClick={() => {
-                        setShowStepForm(false);
-                        setEditingStepIndex(null);
-                        setStepFormData({ title: '', description: '', estimatedMinutes: '' });
-                      }}
-                      className="btn-secondary"
-                    >
-                      İptal
-                    </button>
-                    <button
-                      onClick={handleAddStep}
-                      className="btn-primary"
-                    >
-                      {editingStepIndex !== null ? 'Güncelle' : 'Ekle'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Sub-step Form */}
-            {showSubStepForm && (
-              <div className="card bg-green-50 border-2 border-green-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  {editingSubStepIndex !== null ? 'Alt Adımı Düzenle' : 'Yeni Alt Adım Ekle'}
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="label">Başlık *</label>
-                    <input
-                      type="text"
-                      value={subStepFormData.title}
-                      onChange={(e) => setSubStepFormData({ ...subStepFormData, title: e.target.value })}
-                      className="input"
-                      placeholder="Alt adım başlığı"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Açıklama *</label>
-                    <textarea
-                      value={subStepFormData.description}
-                      onChange={(e) => setSubStepFormData({ ...subStepFormData, description: e.target.value })}
-                      className="input min-h-[80px]"
-                      placeholder="Alt adım açıklaması"
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Tahmini Süre (dakika)</label>
-                    <input
-                      type="number"
-                      value={subStepFormData.estimatedMinutes}
-                      onChange={(e) => setSubStepFormData({ ...subStepFormData, estimatedMinutes: e.target.value })}
-                      className="input"
-                      placeholder="5"
-                    />
-                  </div>
-                  <div className="flex gap-3 justify-end">
-                    <button
-                      onClick={() => {
-                        setShowSubStepForm(false);
-                        setEditingSubStepIndex(null);
-                        setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
-                      }}
-                      className="btn-secondary"
-                    >
-                      İptal
-                    </button>
-                    <button
-                      onClick={handleAddSubStep}
-                      className="btn-primary"
-                    >
-                      {editingSubStepIndex !== null ? 'Güncelle' : 'Ekle'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Steps List */}
-            {processSteps.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <p className="text-gray-600">Henüz adım eklenmedi</p>
-                <p className="text-sm text-gray-500 mt-1">Yukarıdaki butonu kullanarak yeni adım ekleyin</p>
-              </div>
-            ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={processSteps.map(s => s.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-3">
-                    {processSteps.map((step, stepIndex) => (
-                      <SortableStepItem
-                        key={step.id}
-                        step={step}
-                        stepIndex={stepIndex}
-                        expandedSteps={expandedSteps}
-                        onToggleExpand={toggleStepExpansion}
-                        onEdit={handleEditStep}
-                        onDelete={handleDeleteStep}
-                        onAddSubStep={(index) => {
-                          setParentStepIndex(index);
-                          setEditingSubStepIndex(null);
-                          setSubStepFormData({ title: '', description: '', estimatedMinutes: '' });
-                          setShowSubStepForm(true);
-                        }}
-                        onEditSubStep={handleEditSubStep}
-                        onDeleteSubStep={handleDeleteSubStep}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
+      {/* Phase 2: AI Chat */}
+      {currentPhase === 'chat' && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">
+              AI Asistanı ile Konuşma
+            </h2>
+            {isChatComplete && (
+              <span className="text-sm text-green-600 font-medium flex items-center gap-1">
+                <CheckCircle2 className="h-4 w-4" />
+                Tamamlandı
+              </span>
             )}
           </div>
-        )}
 
-        {/* Step 4: Review */}
-        {currentStep === 'review' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">İnceleme ve Kaydet</h2>
-
-            {/* Basic Info Review */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Temel Bilgiler</h3>
-              <dl className="space-y-2">
-                <div>
-                  <dt className="text-sm font-medium text-gray-600">Süreç Adı:</dt>
-                  <dd className="text-sm text-gray-900">{formData.name}</dd>
+          {/* Chat Messages */}
+          <div className="bg-gray-50 rounded-lg p-4 h-[500px] overflow-y-auto mb-4 space-y-4">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-3 ${
+                    message.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : message.role === 'system'
+                      ? 'bg-green-100 text-green-800 border border-green-200'
+                      : 'bg-white text-gray-900 border border-gray-200'
+                  }`}
+                >
+                  <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                  <div
+                    className={`text-xs mt-1 ${
+                      message.role === 'user'
+                        ? 'text-blue-200'
+                        : 'text-gray-500'
+                    }`}
+                  >
+                    {message.timestamp.toLocaleTimeString('tr-TR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
                 </div>
-                {formData.description && (
-                  <div>
-                    <dt className="text-sm font-medium text-gray-600">Açıklama:</dt>
-                    <dd className="text-sm text-gray-900">{formData.description}</dd>
-                  </div>
-                )}
-                {formData.department && (
-                  <div>
-                    <dt className="text-sm font-medium text-gray-600">Departman:</dt>
-                    <dd className="text-sm text-gray-900">{formData.department}</dd>
-                  </div>
-                )}
-              </dl>
-            </div>
+              </div>
+            ))}
 
-            {/* Metrics Review */}
-            {(formData.tasksPerDay || formData.minutesPerTask || formData.costPerHour) && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Süreç Metrikleri</h3>
-                <dl className="grid grid-cols-2 gap-3">
-                  {formData.estimatedTimeMinutes && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">Tahmini Süre:</dt>
-                      <dd className="text-sm text-gray-900">{formData.estimatedTimeMinutes} dakika</dd>
-                    </div>
-                  )}
-                  {formData.tasksPerDay && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">Günlük İşlem:</dt>
-                      <dd className="text-sm text-gray-900">{formData.tasksPerDay}</dd>
-                    </div>
-                  )}
-                  {formData.minutesPerTask && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">İşlem Süresi:</dt>
-                      <dd className="text-sm text-gray-900">{formData.minutesPerTask} dakika</dd>
-                    </div>
-                  )}
-                  {formData.costPerHour && (
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">Saat Başı Maliyet:</dt>
-                      <dd className="text-sm text-gray-900">${formData.costPerHour}</dd>
-                    </div>
-                  )}
-                </dl>
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white text-gray-900 border border-gray-200 rounded-lg p-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                </div>
               </div>
             )}
 
-            {/* Steps Review */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">
-                Süreç Adımları ({processSteps.length})
-              </h3>
-              {processSteps.length === 0 ? (
-                <p className="text-sm text-gray-600">Henüz adım eklenmedi</p>
-              ) : (
-                <div className="space-y-2">
-                  {processSteps.map((step, index) => (
-                    <div key={step.id} className="text-sm">
-                      <div className="font-medium text-gray-900">
-                        {index + 1}. {step.title}
-                        {step.subSteps.length > 0 && (
-                          <span className="text-gray-600 font-normal ml-2">
-                            ({step.subSteps.length} alt adım)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <div ref={chatEndRef} />
+          </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          {/* Chat Input */}
+          {!isChatComplete && (
+            <div className="flex gap-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Mesajınızı yazın..."
+                className="input flex-1"
+                disabled={isLoading}
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={!userInput.trim() || isLoading}
+                className="btn-primary px-4 disabled:opacity-50"
+              >
+                <Send className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Phase 3: Review */}
+      {currentPhase === 'review' && (
+        <div className="space-y-6">
+          <div className="card">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Oluşturulan Adımları İnceleyin
+            </h2>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-blue-800">
-                <strong>Not:</strong> Süreci oluşturduktan sonra AI analizi ile adımları optimize edebilir
-                ve eksik kısımları tespit edebilirsiniz.
+                AI asistanı konuşmanıza dayanarak {generatedSteps.length} adım oluşturdu.
+                İsterseniz düzenleyebilir veya doğrudan onaya gönderebilirsiniz.
               </p>
             </div>
+
+            {/* Generated Steps */}
+            <div className="space-y-4">
+              {generatedSteps.map((step, index) => (
+                <div key={index} className="bg-white border-2 border-gray-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-100 text-blue-800 font-semibold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1">
+                      {editingStepIndex === index ? (
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            value={step.title}
+                            onChange={(e) =>
+                              handleUpdateStep(index, 'title', e.target.value)
+                            }
+                            className="input"
+                            placeholder="Adım başlığı"
+                          />
+                          <textarea
+                            value={step.description}
+                            onChange={(e) =>
+                              handleUpdateStep(index, 'description', e.target.value)
+                            }
+                            className="input min-h-[80px]"
+                            placeholder="Adım açıklaması"
+                          />
+                          <button
+                            onClick={() => setEditingStepIndex(null)}
+                            className="btn-primary text-sm"
+                          >
+                            Tamam
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <h4 className="font-semibold text-gray-900">{step.title}</h4>
+                          <p className="text-sm text-gray-600 mt-1">{step.description}</p>
+
+                          {/* Sub-steps */}
+                          {step.subSteps && step.subSteps.length > 0 && (
+                            <div className="mt-3 ml-4 space-y-2">
+                              {step.subSteps.map((subStep, subIndex) => (
+                                <div
+                                  key={subIndex}
+                                  className="bg-gray-50 rounded-lg p-3 border border-gray-200"
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <div className="bg-green-100 text-green-800 text-xs font-semibold rounded px-2 py-1">
+                                      {index + 1}.{subIndex + 1}
+                                    </div>
+                                    <div>
+                                      <h5 className="text-sm font-medium text-gray-900">
+                                        {subStep.title}
+                                      </h5>
+                                      <p className="text-xs text-gray-600 mt-0.5">
+                                        {subStep.description}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {editingStepIndex !== index && (
+                      <button
+                        onClick={() => handleEditStep(index)}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Düzenle"
+                      >
+                        <Edit className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between items-center">
-        <div>
-          {currentStepIndex > 0 && (
+          {/* Actions */}
+          <div className="flex justify-end gap-3">
             <button
-              onClick={handlePrevious}
+              onClick={() => setCurrentPhase('chat')}
+              className="btn-secondary"
               disabled={isLoading}
-              className="btn-secondary flex items-center disabled:opacity-50"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Önceki
+              Konuşmaya Dön
             </button>
-          )}
-        </div>
-
-        <div className="flex gap-3">
-          <Link href="/dashboard/processes" className="btn-secondary">
-            İptal
-          </Link>
-
-          {currentStepIndex < steps.length - 1 ? (
             <button
-              onClick={handleNext}
-              disabled={isLoading}
+              onClick={handleSubmitForApproval}
+              disabled={isLoading || generatedSteps.length === 0}
               className="btn-primary flex items-center disabled:opacity-50"
             >
-              Sonraki
-              <ArrowRight className="h-4 w-4 ml-2" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Gönderiliyor...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Onaya Gönder
+                </>
+              )}
             </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="btn-primary flex items-center disabled:opacity-50"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {isLoading ? 'Oluşturuluyor...' : 'Süreci Oluştur'}
-            </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

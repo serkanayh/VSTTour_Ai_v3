@@ -84,10 +84,14 @@ export class ProcessController {
     return this.processService.calculateROI(id);
   }
 
-  @Post(':id/submit-approval')
-  @ApiOperation({ summary: 'Submit process for approval' })
+  @Patch(':id/submit-for-approval')
+  @ApiOperation({ summary: 'Submit process for approval with final steps' })
   @ApiResponse({ status: 200, description: 'Process submitted for approval' })
-  submitForApproval(@Param('id') id: string, @CurrentUser('userId') userId: string) {
+  submitForApproval(
+    @Param('id') id: string,
+    @Body() body: { steps?: any[] },
+    @CurrentUser('userId') userId: string
+  ) {
     return this.processService.submitForApproval(id, userId);
   }
 
