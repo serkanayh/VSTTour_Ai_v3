@@ -9,6 +9,7 @@ interface AIConfig {
   name: string;
   provider: string;
   model: string;
+  systemPrompt?: string;
   isActive: boolean;
   maxTokens?: number;
   temperature?: number;
@@ -25,6 +26,7 @@ export default function AdminPage() {
     provider: 'openai',
     model: 'gpt-4',
     apiKey: '',
+    systemPrompt: '',
     maxTokens: '2000',
     temperature: '0.7',
   });
@@ -54,6 +56,7 @@ export default function AdminPage() {
         provider: formData.provider,
         model: formData.model,
         apiKey: formData.apiKey,
+        systemPrompt: formData.systemPrompt,
         maxTokens: parseInt(formData.maxTokens),
         temperature: parseFloat(formData.temperature),
       };
@@ -80,6 +83,7 @@ export default function AdminPage() {
       provider: 'openai',
       model: 'gpt-4',
       apiKey: '',
+      systemPrompt: '',
       maxTokens: '2000',
       temperature: '0.7',
     });
@@ -92,6 +96,7 @@ export default function AdminPage() {
       provider: config.provider,
       model: config.model,
       apiKey: '',
+      systemPrompt: config.systemPrompt || '',
       maxTokens: config.maxTokens?.toString() || '2000',
       temperature: config.temperature?.toString() || '0.7',
     });
@@ -233,7 +238,27 @@ export default function AdminPage() {
                   required={!editingConfig}
                 />
               </div>
+            </div>
 
+            {/* System Prompt - Full Width */}
+            <div>
+              <label className="label">System Prompt *</label>
+              <textarea
+                value={formData.systemPrompt}
+                onChange={(e) =>
+                  setFormData({ ...formData, systemPrompt: e.target.value })
+                }
+                className="input min-h-[200px] font-mono text-sm"
+                placeholder="You are an AI assistant helping to document business processes..."
+                required
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                This prompt defines how the AI assistant behaves when helping users document processes.
+              </p>
+            </div>
+
+            {/* Additional Settings */}
+            <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="label">Max Tokens</label>
                 <input
