@@ -950,10 +950,36 @@ export default function ProcessDetailPage() {
                         </ul>
                       </div>
                     )}
+
+                    {/* Action Buttons */}
+                    <div className="mt-6 flex gap-3 pt-4 border-t border-purple-300">
+                      <button
+                        onClick={() => {
+                          // Switch to AI Chat tab
+                          setActiveTab('ai-chat');
+                          // Add analysis summary to chat
+                          const analysisSummary = `AI Analiz Sonuçlarını inceledim. ${analysisResult.issues?.length || 0} sorun ve ${analysisResult.suggestions?.length || 0} öneri tespit edildi. Bu öneriler hakkında konuşmak ve adımları iyileştirmek ister misin?`;
+                          setAiMessages(prev => [...prev, {
+                            role: 'assistant',
+                            content: analysisSummary
+                          }]);
+                        }}
+                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center"
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        AI ile Tartış
+                      </button>
+                      <button
+                        onClick={() => setShowAnalysis(false)}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                      >
+                        Kapat
+                      </button>
+                    </div>
                   </div>
                   <button
                     onClick={() => setShowAnalysis(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 flex-shrink-0"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -1196,10 +1222,45 @@ export default function ProcessDetailPage() {
               </button>
             </div>
 
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>İpucu:</strong> AI asistanına süreç optimizasyonu, otomasyon önerileri veya adım iyileştirmeleri hakkında sorular sorabilirsiniz.
-              </p>
+            {/* Help Section */}
+            <div className="mt-4 space-y-3">
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>İpucu:</strong> AI asistanına süreç optimizasyonu, otomasyon önerileri veya adım iyileştirmeleri hakkında sorular sorabilirsiniz.
+                </p>
+              </div>
+
+              {analysisResult && (
+                <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Lightbulb className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-purple-900 mb-1">
+                        AI Analiz Sonuçları Mevcut
+                      </p>
+                      <p className="text-sm text-purple-800">
+                        {analysisResult.issues?.length || 0} sorun ve {analysisResult.suggestions?.length || 0} iyileştirme önerisi tespit edildi.
+                        AI'ya bu öneriler hakkında sorular sorabilir, hangi adımı nasıl iyileştireceğinizi öğrenebilirsiniz.
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('steps')}
+                        className="mt-2 text-sm text-purple-700 hover:text-purple-900 font-medium underline"
+                      >
+                        Analiz Sonuçlarını Görüntüle
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {steps.length > 0 && (
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-700">
+                    <strong>Mevcut Adımlar:</strong> {steps.length} adım tanımlanmış.
+                    AI'dan belirli bir adım için öneri isteyebilir veya yeni adım ekleme konusunda yardım alabilirsiniz.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
