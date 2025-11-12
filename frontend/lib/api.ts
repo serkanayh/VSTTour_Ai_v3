@@ -229,6 +229,38 @@ class ApiClient {
     const response = await this.client.delete(`/process/${processId}/conversation`);
     return response.data;
   }
+
+  // AI Orchestrator endpoints
+  async startAIProcess(data: { processName: string; description?: string; departmentId?: string }) {
+    const response = await this.client.post('/ai-orchestrator/start', data);
+    return response.data;
+  }
+
+  async sendAIMessage(data: { processId: string; userMessage: string; conversationHistory: Array<{ role: string; content: string }> }) {
+    const response = await this.client.post('/ai-orchestrator/chat', data);
+    return response.data;
+  }
+
+  async generateStepsFromConversation(processId: string, conversationHistory: Array<{ role: string; content: string }>) {
+    const response = await this.client.post(`/ai-orchestrator/generate-steps/${processId}`, { conversationHistory });
+    return response.data;
+  }
+
+  async submitForApproval(processId: string, steps?: any[]) {
+    const response = await this.client.patch(`/process/${processId}/submit-for-approval`, { steps });
+    return response.data;
+  }
+
+  // Generic method for backwards compatibility
+  async post(url: string, data: any) {
+    const response = await this.client.post(url, data);
+    return response;
+  }
+
+  async patch(url: string, data: any) {
+    const response = await this.client.patch(url, data);
+    return response;
+  }
 }
 
 export const api = new ApiClient();

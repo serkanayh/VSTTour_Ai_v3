@@ -98,19 +98,19 @@ export default function NewProcessPage() {
 
     try {
       // Start AI process conversation
-      const response = await api.post('/ai-orchestrator/start', {
+      const response = await api.startAIProcess({
         processName: formData.name,
         description: formData.description || undefined,
         departmentId: formData.department || undefined,
       });
 
-      setProcessId(response.data.processId);
+      setProcessId(response.processId);
 
       // Add initial AI message
       setMessages([
         {
           role: 'assistant',
-          content: response.data.aiPrompt || `Merhaba! "${formData.name}" sürecini birlikte oluşturalım. Lütfen bu sürecin nasıl işlediğini detaylı bir şekilde anlatır mısınız? Hangi adımları içeriyor?`,
+          content: response.aiPrompt || `Merhaba! "${formData.name}" sürecini birlikte oluşturalım. Lütfen bu sürecin nasıl işlediğini detaylı bir şekilde anlatır mısınız? Hangi adımları içeriyor?`,
           timestamp: new Date(),
         },
       ]);
@@ -138,7 +138,7 @@ export default function NewProcessPage() {
     setError('');
 
     try {
-      const response = await api.post('/ai-orchestrator/chat', {
+      const response = await api.sendAIMessage({
         processId,
         userMessage: userMessage.content,
         conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
@@ -146,14 +146,14 @@ export default function NewProcessPage() {
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: response.data.response,
+        content: response.response,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
 
       // Check if conversation is complete
-      if (response.data.isComplete || response.data.structuredData) {
+      if (response.isComplete || response.structuredData) {
         setIsChatComplete(true);
 
         // Add completion message
@@ -184,18 +184,19 @@ export default function NewProcessPage() {
     setIsLoading(true);
     try {
       // Call backend to extract and create steps from conversation
-      const response = await api.post(`/ai-orchestrator/generate-steps/${processId}`, {
-        conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
-      });
+      const response = await api.generateStepsFromConversation(
+        processId,
+        messages.map(m => ({ role: m.role, content: m.content }))
+      );
 
-      setGeneratedSteps(response.data.steps || []);
+      setGeneratedSteps(response.steps || []);
       setCurrentPhase('review');
 
       setMessages(prev => [
         ...prev,
         {
           role: 'system',
-          content: `✨ ${response.data.steps?.length || 0} adım başarıyla oluşturuldu! Lütfen kontrol edin.`,
+          content: `✨ ${response.steps?.length || 0} adım başarıyla oluşturuldu! Lütfen kontrol edin.`,
           timestamp: new Date(),
         },
       ]);
@@ -225,9 +226,7 @@ export default function NewProcessPage() {
 
     try {
       // Update process with final steps and submit for approval
-      await api.patch(`/process/${processId}/submit-for-approval`, {
-        steps: generatedSteps,
-      });
+      await api.submitForApproval(processId, generatedSteps);
 
       router.push(`/dashboard/processes/${processId}`);
     } catch (err: any) {
