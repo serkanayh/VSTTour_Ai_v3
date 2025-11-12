@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AdminService } from '../../admin/admin.service';
 import axios from 'axios';
 
 interface ChatMessage {
@@ -9,35 +10,54 @@ interface ChatMessage {
 
 @Injectable()
 export class OpenAiService {
-  private readonly apiKey: string;
-  private readonly model: string;
-  private readonly fallbackModel: string;
   private readonly apiUrl = 'https://api.openai.com/v1/chat/completions';
 
-  constructor(private configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    this.model = this.configService.get<string>('OPENAI_MODEL') || 'gpt-4';
-    this.fallbackModel = this.configService.get<string>('OPENAI_FALLBACK_MODEL') || 'gpt-3.5-turbo';
+  constructor(
+    private configService: ConfigService,
+    private adminService: AdminService,
+  ) {}
+
+  private async getActiveConfig() {
+    const config = await this.adminService.getActiveConfiguration();
+
+    if (!config || !config.apiKey) {
+      // Fallback to .env if no active config
+      const envApiKey = this.configService.get<string>('OPENAI_API_KEY');
+      if (!envApiKey || envApiKey === 'your-openai-api-key-here') {
+        throw new ServiceUnavailableException('OpenAI API key not configured');
+      }
+      return {
+        apiKey: envApiKey,
+        model: this.configService.get<string>('OPENAI_MODEL') || 'gpt-4',
+        temperature: 0.7,
+        maxTokens: 2000,
+      };
+    }
+
+    return {
+      apiKey: config.apiKey,
+      model: config.model,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+    };
   }
 
-  async chat(messages: ChatMessage[], temperature: number = 0.7): Promise<string> {
-    if (!this.apiKey) {
-      throw new ServiceUnavailableException('OpenAI API key not configured');
-    }
+  async chat(messages: ChatMessage[], temperature?: number): Promise<string> {
+    const config = await this.getActiveConfig();
 
     try {
       const response = await axios.post(
         this.apiUrl,
         {
-          model: this.model,
+          model: config.model,
           messages: messages,
-          temperature: temperature,
-          max_tokens: 2000,
+          temperature: temperature ?? config.temperature,
+          max_tokens: config.maxTokens,
         },
         {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `Bearer ${config.apiKey}`,
           },
           timeout: 30000, // 30 seconds timeout
         },
@@ -51,23 +71,21 @@ export class OpenAiService {
   }
 
   async chatWithFallback(messages: ChatMessage[]): Promise<string> {
-    if (!this.apiKey) {
-      throw new ServiceUnavailableException('OpenAI API key not configured');
-    }
+    const config = await this.getActiveConfig();
 
     try {
       const response = await axios.post(
         this.apiUrl,
         {
-          model: this.fallbackModel,
+          model: config.model,
           messages: messages,
-          temperature: 0.7,
-          max_tokens: 2000,
+          temperature: config.temperature,
+          max_tokens: config.maxTokens,
         },
         {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `Bearer ${config.apiKey}`,
           },
           timeout: 30000,
         },
