@@ -463,24 +463,53 @@ export default function NewProcessPage() {
 
           {/* Chat Input */}
           {!isChatComplete && (
-            <div className="flex gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Mesajınızı yazın..."
-                className="input flex-1"
-                disabled={isLoading}
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!userInput.trim() || isLoading}
-                className="btn-primary px-4 disabled:opacity-50"
-              >
-                <Send className="h-5 w-5" />
-              </button>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Mesajınızı yazın..."
+                  className="input flex-1"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!userInput.trim() || isLoading}
+                  className="btn-primary px-4 disabled:opacity-50"
+                >
+                  <Send className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Manual complete button */}
+              {messages.length >= 4 && (
+                <div className="border-t pt-3">
+                  <button
+                    onClick={() => {
+                      setIsChatComplete(true);
+                      setTimeout(() => {
+                        setMessages(prev => [
+                          ...prev,
+                          {
+                            role: 'system',
+                            content: '✅ Harika! Yeterli bilgi toplandı. Şimdi adımları oluşturuyorum...',
+                            timestamp: new Date(),
+                          },
+                        ]);
+                        setTimeout(() => generateStepsFromConversation(), 2000);
+                      }, 500);
+                    }}
+                    disabled={isLoading}
+                    className="w-full btn-primary bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                    Konuşma Tamamlandı - Adımları Oluştur
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
